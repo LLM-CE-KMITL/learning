@@ -1,0 +1,746 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Transformer Signal Lab</title>
+<style>
+  :root{
+    --bg:#0b0f0e;
+    --panel:#111614;
+    --panel2:#151b19;
+    --line:#233029;
+    --ink:#dce8e0;
+    --ink-dim:#7f958a;
+    --signal:#5ee6a3;
+    --signal-dim:#2b6b4f;
+    --amber:#e6b85e;
+    --red:#e6685e;
+    --mono: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+    --disp: 'Space Grotesk', Arial, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:var(--mono); line-height:1.5;
+    padding-bottom:80px;
+  }
+  @font-face{
+    font-family:'Space Grotesk';
+    src:local('Space Grotesk');
+  }
+  a{color:var(--signal);}
+  .wrap{max-width:1180px; margin:0 auto; padding:28px 20px 60px;}
+  header{
+    display:flex; justify-content:space-between; align-items:flex-end;
+    border-bottom:1px solid var(--line); padding-bottom:18px; margin-bottom:26px;
+    flex-wrap:wrap; gap:12px;
+  }
+  h1{
+    font-family:var(--disp); font-weight:700; font-size:26px; letter-spacing:-0.02em;
+    margin:0; color:var(--ink);
+  }
+  h1 span{color:var(--signal);}
+  .subtitle{color:var(--ink-dim); font-size:12.5px; margin-top:4px; max-width:520px;}
+  .badge{
+    font-size:11px; color:var(--signal-dim); border:1px solid var(--signal-dim);
+    padding:4px 9px; border-radius:2px; letter-spacing:0.08em; text-transform:uppercase;
+    align-self:flex-start;
+  }
+  section.block{
+    background:var(--panel); border:1px solid var(--line); border-radius:4px;
+    padding:20px; margin-bottom:18px;
+  }
+  .section-label{
+    font-family:var(--disp); font-size:13px; letter-spacing:0.12em; text-transform:uppercase;
+    color:var(--signal); margin-bottom:14px; display:flex; align-items:center; gap:10px;
+  }
+  .section-label .num{
+    background:var(--signal-dim); color:#0b0f0e; font-weight:700; font-size:11px;
+    width:20px;height:20px;border-radius:50%; display:flex; align-items:center; justify-content:center;
+    font-family:var(--mono);
+  }
+
+  /* word bank + drop zone */
+  .wordbank{display:flex; flex-wrap:wrap; gap:8px; margin-bottom:16px;}
+  .word-chip{
+    background:var(--panel2); border:1px solid var(--line); color:var(--ink);
+    padding:7px 13px; border-radius:10px; font-size:13px; cursor:grab;
+    user-select:none; transition:border-color .15s, transform .1s;
+    display:flex; flex-direction:column; align-items:flex-start; gap:2px;
+  }
+  .word-chip:hover{border-color:var(--signal-dim);}
+  .word-chip:active{cursor:grabbing;}
+  .word-chip .dot{
+    display:inline-block; width:7px;height:7px;border-radius:50%; margin-right:7px;
+  }
+  .word-chip .vec{
+    font-size:10px; color:var(--ink-dim); margin-left:14px; letter-spacing:0.01em;
+  }
+  .dropzone{
+    min-height:56px; border:1.5px dashed var(--line); border-radius:4px;
+    display:flex; align-items:center; gap:8px; padding:10px; flex-wrap:wrap;
+    background:rgba(94,230,163,0.02);
+  }
+  .dropzone.dragover{border-color:var(--signal); background:rgba(94,230,163,0.06);}
+  .dropzone .placeholder{color:var(--ink-dim); font-size:12.5px;}
+  .seq-chip{
+    background:rgba(94,230,163,0.08); border:1px solid var(--signal-dim); color:var(--signal);
+    padding:7px 10px; border-radius:14px; font-size:13px; display:flex; align-items:center; gap:8px;
+  }
+  .seq-chip .idx{color:var(--ink-dim); font-size:10.5px;}
+  .seq-chip .rm{cursor:pointer; color:var(--red); font-weight:700; padding:0 2px;}
+  .controls{display:flex; gap:10px; margin-top:16px; align-items:center; flex-wrap:wrap;}
+  button.run{
+    background:var(--signal); color:#06110c; border:none; font-family:var(--disp);
+    font-weight:700; font-size:13px; letter-spacing:0.03em; padding:11px 22px;
+    border-radius:3px; cursor:pointer; text-transform:uppercase;
+  }
+  button.run:disabled{background:var(--signal-dim); color:#0b0f0e; cursor:not-allowed; opacity:0.6;}
+  button.ghost{
+    background:transparent; border:1px solid var(--line); color:var(--ink-dim);
+    font-family:var(--mono); font-size:12px; padding:10px 16px; border-radius:3px; cursor:pointer;
+  }
+  button.ghost:hover{border-color:var(--signal-dim); color:var(--ink);}
+
+  /* matrices */
+  .mrow{display:flex; gap:22px; flex-wrap:wrap; align-items:flex-start; margin-bottom:6px;}
+  .mtitle{font-size:11.5px; color:var(--ink-dim); margin-bottom:6px; letter-spacing:0.04em;}
+  table.mat{border-collapse:collapse; font-size:12px;}
+  table.mat td{
+    border:1px solid var(--line); padding:5px 9px; text-align:right; min-width:38px;
+    color:var(--ink);
+  }
+  table.mat.small td{padding:3px 7px; font-size:11px;}
+  table.mat.weight td{border:2px solid var(--amber); border-color:#8a6a2e;}
+  table.mat.weight{outline:1px solid #8a6a2e; outline-offset:2px;}
+  .weight-tag{
+    font-size:9.5px; color:var(--amber); border:1px solid #8a6a2e; border-radius:2px;
+    padding:1px 5px; margin-left:6px; text-transform:uppercase; letter-spacing:0.05em;
+    vertical-align:middle;
+  }
+  .matwrap{display:inline-block; position:relative;}
+  .heat td{position:relative;}
+  .heads-row{display:flex; gap:26px; flex-wrap:wrap;}
+  .head-card{
+    border:1px solid var(--line); border-radius:4px; padding:14px; background:var(--panel2);
+    flex:1; min-width:300px;
+  }
+  .head-card h4{
+    margin:0 0 12px; font-family:var(--disp); font-size:12px; color:var(--amber);
+    letter-spacing:0.06em; text-transform:uppercase;
+  }
+  .arrow-row{display:flex; align-items:center; gap:10px; color:var(--ink-dim); font-size:18px; margin:10px 0;}
+  .divider{height:1px; background:var(--line); margin:16px 0;}
+  .blockwrap{border:1px solid var(--signal-dim); border-radius:6px; padding:18px; margin-bottom:18px; background:rgba(94,230,163,0.015);}
+  .blockwrap > h3{
+    margin:0 0 16px; font-family:var(--disp); font-size:15px; color:var(--signal);
+    display:flex; align-items:center; gap:10px;
+  }
+  .step-tag{
+    font-size:10px; color:var(--ink-dim); text-transform:uppercase; letter-spacing:0.1em;
+    border-left:2px solid var(--signal-dim); padding-left:8px; margin:14px 0 8px;
+  }
+
+  /* chart */
+  .chart-wrap{display:flex; gap:30px; flex-wrap:wrap; align-items:flex-start;}
+  svg.chart{background:var(--panel2); border:1px solid var(--line); border-radius:4px; width:100%; max-width:720px; height:auto;}
+  .legend{font-size:12px; color:var(--ink-dim); display:flex; flex-direction:column; gap:8px; padding-top:6px;}
+  .legend .item{display:flex; align-items:center; gap:8px;}
+  .legend .sw{width:11px;height:11px;border-radius:50%;}
+
+  .predict-banner{
+    display:flex; align-items:center; gap:14px; padding:16px 18px; border-radius:4px;
+    background:rgba(230,184,94,0.06); border:1px solid var(--amber); margin-bottom:18px;
+  }
+  .predict-banner .big{font-family:var(--disp); font-size:22px; color:var(--amber); font-weight:700;}
+  .predict-banner .desc{color:var(--ink-dim); font-size:12px;}
+
+  .probbar-row{display:flex; align-items:center; gap:10px; margin-bottom:5px; font-size:11.5px;}
+  .probbar-row .label{width:90px; color:var(--ink-dim); text-align:right;}
+  .probbar-track{flex:1; height:10px; background:var(--panel2); border-radius:2px; overflow:hidden; border:1px solid var(--line);}
+  .probbar-fill{height:100%; background:var(--signal-dim);}
+  .probbar-row.top .probbar-fill{background:var(--amber);}
+  .probbar-row .val{width:44px; color:var(--ink-dim);}
+  .probbar-row .angleval{width:48px; color:var(--signal-dim); text-align:right; font-size:11px;}
+  .probbar-row.top .angleval{color:var(--amber);}
+
+  .empty-note{color:var(--ink-dim); font-size:12.5px; text-align:center; padding:30px 0;}
+  footer{text-align:center; color:var(--ink-dim); font-size:11px; padding-top:10px;}
+
+  @media (max-width: 640px){
+    .head-card{min-width:100%;}
+    table.mat td{padding:4px 6px; min-width:28px; font-size:10.5px;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div>
+      <h1>Transformer <span>Signal Lab</span></h1>
+      <h2>by SAIG lab KMITL</h2>
+      <p>Powered by Claude</p>
+      <div class="subtitle">Drag words into a prompt, then trace the signal through 2 transformer blocks (2 heads each) in 2D vector space — every Q, K, V, attention, feed-forward and output matrix, visualized.</div>
+    </div>
+    <div class="badge">d_model = 2 · seed <span id="seedBadge">1234567</span></div>
+  </header>
+
+  <section class="block">
+    <div class="section-label"><span class="num">1</span>Build your prompt</div>
+    <div class="mtitle">Word bank — drag chips into the sequence below (order matters)</div>
+    <div id="wordbank" class="wordbank"></div>
+    <div class="mtitle" style="margin-top:14px;">Prompt sequence</div>
+    <div id="dropzone" class="dropzone">
+      <span class="placeholder">Drop words here to form a sequence (2–6 words)…</span>
+    </div>
+    <div class="controls">
+      <button class="run" id="runBtn" disabled>▶ Run transformer</button>
+      <button class="ghost" id="clearBtn">Clear sequence</button>
+      <button class="ghost" id="randomBtn">Random prompt</button>
+      <button class="ghost" id="randomWeightsBtn">🎲 Randomize weights</button>
+    </div>
+  </section>
+
+  <section class="block" id="chartSection">
+    <div class="section-label"><span class="num">2</span>2D embedding space — angular similarity view</div>
+    <div class="mtitle" id="chartHint">Rays from the origin show each word's direction. Run the transformer or shuffle a random prompt to see tokens shift after positional encoding is added.</div>
+    <div class="chart-wrap">
+      <svg class="chart" id="chartSvg"></svg>
+      <div class="legend" id="chartLegend"></div>
+    </div>
+  </section>
+
+  <div id="output"></div>
+
+  <footer>Every weight matrix below is fixed (seeded), so the same prompt always produces the same signal path. Vectors are 2D purely so the whole computation can be plotted and read directly.</footer>
+</div>
+
+<script>
+(function(){
+
+// ---------- fixed vocabulary ----------
+const WORDS = [
+  // animals — upper right cluster
+  {w:"dog",    v:[ 2.1,  1.5], color:"#5ee6a3"},
+  {w:"cat",    v:[ 2.4,  1.1], color:"#6be6c2"},
+  {w:"rat",    v:[ 1.8,  0.9], color:"#7fe6d4"},
+  // verbs — upper left cluster
+  {w:"eats",   v:[-1.7,  2.1], color:"#e6b85e"},
+  {w:"hits",   v:[-2.2,  1.6], color:"#e6a15e"},
+  {w:"walks",  v:[-1.4,  2.5], color:"#e68a5e"},
+  {w:"talks",  v:[-2.0,  2.0], color:"#e6735e"},
+  // function words — clustered near the origin (small magnitude = little standalone meaning)
+  {w:"a",      v:[ 0.25, -0.30], color:"#9aa39c"},
+  {w:"with",   v:[-0.30,  0.25], color:"#7f958a"},
+  {w:"to",     v:[ 0.35,  0.35], color:"#b7c2ba"},
+  // adjectives, emotion/quality — lower right cluster
+  {w:"happy",  v:[ 2.4, -0.9], color:"#e65e9a"},
+  {w:"poor",   v:[ 1.7, -1.5], color:"#c15ee6"},
+  // adjectives, color/size — lower left cluster
+  {w:"brown",  v:[-0.6, -2.2], color:"#a3773f"},
+  {w:"white",  v:[-1.1, -2.0], color:"#cfd6d2"},
+  {w:"small",  v:[ 0.6, -2.3], color:"#a3e65e"},
+  {w:"big",    v:[ 1.2, -2.1], color:"#5ee671"},
+  // punctuation / whitespace — also near the origin, alongside the other function words
+  {w:" ",      label:"␣ space", v:[-0.15, -0.15], color:"#c9c9c9"},
+  {w:".",      label:". fullstop", v:[ 0.10, -0.45], color:"#8f8f8f"},
+  {w:",",      label:", comma", v:[-0.45,  0.10], color:"#a6a6a6"},
+];
+function disp(w){ return w.label || w.w; }
+const SUP_DIGITS = {'0':'⁰','1':'¹','2':'²','3':'³','4':'⁴','5':'⁵','6':'⁶','7':'⁷','8':'⁸','9':'⁹'};
+function toSuper(n){ return String(n).split('').map(d=>SUP_DIGITS[d]||d).join(''); }
+
+// ---------- seeded weights (rebuildable) ----------
+function mulberry32(a){
+  return function(){
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+let CURRENT_SEED = 1234567;
+let rng = mulberry32(CURRENT_SEED);
+function randSmall(){ return (rng()*2-1)*0.9; }
+function mat(rows, cols){
+  const m=[];
+  for(let i=0;i<rows;i++){const r=[]; for(let j=0;j<cols;j++) r.push(randSmall()); m.push(r);}
+  return m;
+}
+
+let BLOCKS = [];
+function buildBlocks(seed){
+  rng = mulberry32(seed);
+  const blocks = [];
+  for(let b=0;b<2;b++){
+    const block = {heads:[], Wo: mat(4,2), W1: mat(2,4), b1: mat(1,4)[0], W2: mat(4,2), b2: mat(1,2)[0]};
+    for(let h=0;h<2;h++){
+      block.heads.push({Wq: mat(2,2), Wk: mat(2,2), Wv: mat(2,2)});
+    }
+    blocks.push(block);
+  }
+  return blocks;
+}
+BLOCKS = buildBlocks(CURRENT_SEED);
+
+// ---------- linear algebra helpers ----------
+function matmul(A,B){ // A: n x k, B: k x m
+  const n=A.length, k=A[0].length, m=B[0].length;
+  const out=[];
+  for(let i=0;i<n;i++){
+    const row=[];
+    for(let j=0;j<m;j++){
+      let s=0;
+      for(let p=0;p<k;p++) s+=A[i][p]*B[p][j];
+      row.push(s);
+    }
+    out.push(row);
+  }
+  return out;
+}
+function addRowVec(A, v){ return A.map(r=>r.map((x,j)=>x+v[j])); }
+function addMat(A,B){ return A.map((r,i)=>r.map((x,j)=>x+B[i][j])); }
+function transpose(A){ const n=A.length,m=A[0].length; const T=[]; for(let j=0;j<m;j++){const r=[]; for(let i=0;i<n;i++) r.push(A[i][j]); T.push(r);} return T; }
+function scaleMat(A,s){ return A.map(r=>r.map(x=>x*s)); }
+function softmaxRows(A){
+  return A.map(row=>{
+    const mx = Math.max(...row);
+    const ex = row.map(x=>Math.exp(x-mx));
+    const s = ex.reduce((a,b)=>a+b,0);
+    return ex.map(x=>x/s);
+  });
+}
+function relu(A){ return A.map(r=>r.map(x=>Math.max(0,x))); }
+function rmsNormRows(A){
+  // Standard LayerNorm (subtract mean, divide by std) is degenerate for 2D vectors:
+  // for any 2 numbers, centering + dividing by their std always yields exactly (+1,-1) or (-1,+1),
+  // destroying all directional information — which is why every prompt collapsed to the same
+  // predicted word. RMSNorm instead only rescales magnitude and fully preserves the vector's angle.
+  return A.map(row=>{
+    const rms = Math.sqrt((row[0]*row[0]+row[1]*row[1])/row.length + 1e-6);
+    return row.map(x=>x/rms);
+  });
+}
+function fmt(x){ if(!isFinite(x)) return x<0?'-∞':'∞'; return (Math.round(x*100)/100).toFixed(2); }
+function causalMask(n){
+  const m=[];
+  for(let i=0;i<n;i++){ const row=[]; for(let j=0;j<n;j++) row.push(j<=i?1:0); m.push(row); }
+  return m;
+}
+
+// ---------- rendering helpers for matrices ----------
+function renderMatTable(M, opts){
+  opts = opts||{};
+  let html = '<table class="mat'+(opts.small?' small':'')+(opts.weight?' weight':'')+'">';
+  const heat = opts.heat;
+  let maxAbs = 1;
+  if(heat){ maxAbs = Math.max(0.001, ...M.flat().map(Math.abs)); }
+  for(const row of M){
+    html += '<tr>';
+    for(const val of row){
+      let style='';
+      if(heat){
+        const t = Math.abs(val)/maxAbs;
+        const alpha = 0.08 + t*0.55;
+        style = `style="background:rgba(94,230,163,${alpha.toFixed(2)})"`;
+      }
+      html += `<td ${style}>${fmt(val)}</td>`;
+    }
+    html += '</tr>';
+  }
+  html += '</table>';
+  return html;
+}
+function labeledMat(title, M, opts){
+  opts = opts||{};
+  const tag = opts.weight ? '<span class="weight-tag">pre-trained</span>' : '';
+  return `<div><div class="mtitle">${title}${tag} <span style="color:var(--ink-dim)">(${M.length}×${M[0].length})</span></div>${renderMatTable(M,opts)}</div>`;
+}
+
+// ---------- state ----------
+let sequence = []; // array of word objects {w, v, color}
+let dragIndexFromSeq = null;
+
+const wordbankEl = document.getElementById('wordbank');
+const dropzoneEl = document.getElementById('dropzone');
+const runBtn = document.getElementById('runBtn');
+const outputEl = document.getElementById('output');
+
+function buildWordbank(){
+  wordbankEl.innerHTML='';
+  const sorted = WORDS
+    .map((word, origIdx)=>({...word, origIdx}))
+    .sort((a,b)=> a.w.localeCompare(b.w));
+  sorted.forEach(word=>{
+    const chip = document.createElement('div');
+    chip.className='word-chip';
+    chip.draggable = true;
+    chip.innerHTML = `<span class="dot" style="background:${word.color}"></span>${disp(word)}<span class="vec">[${word.v[0].toFixed(2)}, ${word.v[1].toFixed(2)}]</span>`;
+    chip.addEventListener('dragstart', e=>{
+      e.dataTransfer.setData('text/plain', JSON.stringify({from:'bank', idx:word.origIdx}));
+    });
+    wordbankEl.appendChild(chip);
+  });
+}
+
+function renderSequence(){
+  dropzoneEl.innerHTML='';
+  if(sequence.length===0){
+    dropzoneEl.innerHTML = '<span class="placeholder">Drop words here to form a sequence (2–6 words)…</span>';
+  } else {
+    sequence.forEach((word, i)=>{
+      const chip = document.createElement('div');
+      chip.className='seq-chip';
+      chip.draggable = true;
+      chip.innerHTML = `<span class="idx">${i}</span><span class="dot" style="background:${word.color};width:7px;height:7px;border-radius:50%;display:inline-block;"></span>${disp(word)}<span class="rm" data-i="${i}">✕</span>`;
+      chip.addEventListener('dragstart', e=>{
+        e.dataTransfer.setData('text/plain', JSON.stringify({from:'seq', idx:i}));
+      });
+      dropzoneEl.appendChild(chip);
+    });
+  }
+  runBtn.disabled = sequence.length < 2;
+}
+
+dropzoneEl.addEventListener('dragover', e=>{ e.preventDefault(); dropzoneEl.classList.add('dragover'); });
+dropzoneEl.addEventListener('dragleave', ()=> dropzoneEl.classList.remove('dragover'));
+dropzoneEl.addEventListener('drop', e=>{
+  e.preventDefault();
+  dropzoneEl.classList.remove('dragover');
+  if(sequence.length>=6) return;
+  try{
+    const data = JSON.parse(e.dataTransfer.getData('text/plain'));
+    if(data.from==='bank'){
+      const w = WORDS[data.idx];
+      sequence.push({...w});
+    } else if(data.from==='seq'){
+      // reorder to end - simple approach
+      const item = sequence.splice(data.idx,1)[0];
+      sequence.push(item);
+    }
+    renderSequence();
+  }catch(err){}
+});
+dropzoneEl.addEventListener('click', e=>{
+  if(e.target.classList.contains('rm')){
+    const i = parseInt(e.target.dataset.i);
+    sequence.splice(i,1);
+    renderSequence();
+  }
+});
+
+document.getElementById('clearBtn').addEventListener('click', ()=>{
+  sequence = []; renderSequence(); outputEl.innerHTML='';
+});
+document.getElementById('randomBtn').addEventListener('click', ()=>{
+  const n = 3 + Math.floor(Math.random()*3);
+  const shuffled = [...WORDS].sort(()=>Math.random()-0.5).slice(0,n);
+  sequence = shuffled.map(w=>({...w}));
+  renderSequence();
+  outputEl.innerHTML='';
+  const PE = sinusoidalPE(sequence.length);
+  const X_withPos = addMat(sequence.map(w=>w.v.slice()), PE);
+  renderChartAnimated(sequence, PE, X_withPos, {showFinal:false});
+});
+
+document.getElementById('randomWeightsBtn').addEventListener('click', ()=>{
+  CURRENT_SEED = Math.floor(Math.random()*1e7);
+  BLOCKS = buildBlocks(CURRENT_SEED);
+  document.getElementById('seedBadge').textContent = CURRENT_SEED;
+  if(sequence.length >= 2){
+    runTransformer();
+  } else {
+    outputEl.innerHTML = '<div class="empty-note">New weight matrices generated (seed '+CURRENT_SEED+'). Build a prompt sequence above and run the transformer to see the effect.</div>';
+  }
+});
+
+buildWordbank();
+renderSequence();
+
+// ---------- core run ----------
+runBtn.addEventListener('click', runTransformer);
+
+function sinusoidalPE(n){
+  // d_model = 2 → PE(pos,0)=sin(pos/10000^0)=sin(pos), PE(pos,1)=cos(pos/10000^0)=cos(pos)
+  const PE = [];
+  for(let pos=0; pos<n; pos++){
+    PE.push([Math.sin(pos), Math.cos(pos)]);
+  }
+  return PE;
+}
+
+function runTransformer(){
+  const seqWords = sequence;
+  const n = seqWords.length;
+  let X = seqWords.map(w=>w.v.slice()); // n x 2
+  const X_rawEmbed = X.map(r=>r.slice()); // keep pristine copy for the chart (pre-position)
+
+  const PE = sinusoidalPE(n);
+  const X_withPos = addMat(X, PE);
+
+  let html = '';
+  html += labeledMatSection("Input embeddings X", X, seqWords, PE, X_withPos);
+
+  X = X_withPos;
+
+  for(let b=0; b<BLOCKS.length; b++){
+    const block = BLOCKS[b];
+    html += `<div class="blockwrap"><h3>🔷 Transformer Block ${b+1}</h3>`;
+
+    // ---- multi head attention ----
+    const headOutputs = [];
+    const mask = causalMask(n);
+    html += '<div class="step-tag">Step A — Multi-head self-attention (2 heads), causally masked</div>';
+    html += '<div class="heads-row">';
+    for(let h=0; h<block.heads.length; h++){
+      const head = block.heads[h];
+      const Q = matmul(X, head.Wq);
+      const K = matmul(X, head.Wk);
+      const V = matmul(X, head.Wv);
+      const scores = scaleMat(matmul(Q, transpose(K)), 1/Math.sqrt(2));
+      const maskedScores = scores.map((row,i)=> row.map((v,j)=> mask[i][j] ? v : -Infinity));
+      const attn = softmaxRows(maskedScores);
+      const headOut = matmul(attn, V);
+      headOutputs.push(headOut);
+
+      html += `<div class="head-card"><h4>Head ${h+1}</h4>`;
+      html += `<div class="mrow">${labeledMat("Wq", head.Wq, {small:true, weight:true})}${labeledMat("Wk", head.Wk,{small:true, weight:true})}${labeledMat("Wv", head.Wv,{small:true, weight:true})}</div>`;
+      html += `<div class="mrow">${labeledMat("Q = X·Wq", Q,{small:true})}${labeledMat("K = X·Wk", K,{small:true})}${labeledMat("V = X·Wv", V,{small:true})}</div>`;
+      html += `<div class="mrow">${labeledMat("Causal mask (1 = visible, 0 = blocked)", mask,{small:true})}${labeledMat("Masked scores (QKᵀ/√d)", maskedScores,{small:true})}</div>`;
+      html += `<div class="mrow">${labeledMat("Attention = softmax(masked scores)", attn,{small:true, heat:true})}</div>`;
+      html += `<div class="mrow">${labeledMat("Head output = Attention·V", headOut,{small:true})}</div>`;
+      html += `</div>`;
+    }
+    html += '</div>';
+
+    const concat = headOutputs[0].map((row,i)=> row.concat(headOutputs[1][i]));
+    const attnProj = matmul(concat, block.Wo);
+    const X_afterAttn = addMat(X, attnProj); // residual
+    const X_norm1 = rmsNormRows(X_afterAttn);
+
+    html += '<div class="step-tag">Step B — Concatenate heads, project, add residual, normalize</div>';
+    html += `<div class="mrow">${labeledMat("Concat(heads)", concat,{small:true})}${labeledMat("Wo (4×2)", block.Wo,{small:true, weight:true})}${labeledMat("AttnOut = Concat·Wo", attnProj,{small:true})}</div>`;
+    html += `<div class="mrow">${labeledMat("X + AttnOut (residual)", X_afterAttn,{small:true})}${labeledMat("RMSNorm → X′", X_norm1,{small:true})}</div>`;
+
+    // ---- feed forward ----
+    const ffHidden = relu(addRowVec(matmul(X_norm1, block.W1), block.b1));
+    const ffOut = addRowVec(matmul(ffHidden, block.W2), block.b2);
+    const X_afterFF = addMat(X_norm1, ffOut);
+    const X_norm2 = rmsNormRows(X_afterFF);
+
+    html += '<div class="step-tag">Step C — Feed-forward network (2→4→2, ReLU), residual, normalize</div>';
+    html += `<div class="mrow">${labeledMat("W1 (2×4)", block.W1,{small:true, weight:true})}${labeledMat("ReLU(X′·W1+b1)", ffHidden,{small:true})}${labeledMat("W2 (4×2)", block.W2,{small:true, weight:true})}${labeledMat("FF out", ffOut,{small:true})}</div>`;
+    html += `<div class="mrow">${labeledMat("X′ + FFout (residual)", X_afterFF,{small:true})}${labeledMat("RMSNorm → Block output", X_norm2,{small:true})}</div>`;
+
+    html += `</div>`; // close blockwrap
+    X = X_norm2;
+  }
+
+  // ---- output / prediction ----
+  const finalVec = X[X.length-1]; // last token representation
+  function cosineSim(a,b){
+    const dot = a[0]*b[0]+a[1]*b[1];
+    const na = Math.sqrt(a[0]*a[0]+a[1]*a[1]);
+    const nb = Math.sqrt(b[0]*b[0]+b[1]*b[1]);
+    return dot/((na*nb)||1e-9);
+  }
+  const cosines = WORDS.map(w=>cosineSim(w.v, finalVec));
+  // scale cosine similarity up so softmax has meaningful spread (like a temperature)
+  const logits = cosines.map(c=>c*6);
+  const maxLogit = Math.max(...logits);
+  const expL = logits.map(l=>Math.exp(l-maxLogit));
+  const sumE = expL.reduce((a,b)=>a+b,0);
+  const probs = expL.map(e=>e/sumE);
+  let bestIdx = 0;
+  probs.forEach((p,i)=>{ if(p>probs[bestIdx]) bestIdx=i; });
+  const predicted = WORDS[bestIdx];
+
+  html += '<div class="blockwrap"><h3>🎯 Output Linear Layer & Prediction</h3>';
+  html += '<div class="step-tag">Final token representation (last position, after both blocks) is compared against every vocabulary vector by angle — cosine similarity → scaled logits → softmax</div>';
+  html += `<div class="mrow">${labeledMat("Final vector (last token)", [finalVec],{small:true})}</div>`;
+
+  html += '<div style="margin-top:14px;">';
+  const order = probs.map((p,i)=>i).sort((a,b)=>probs[b]-probs[a]);
+  order.forEach(i=>{
+    const pct = (probs[i]*100).toFixed(1);
+    const angleDeg = (Math.acos(Math.max(-1,Math.min(1,cosines[i])))*180/Math.PI).toFixed(0);
+    html += `<div class="probbar-row ${i===bestIdx?'top':''}"><div class="label">${disp(WORDS[i])}</div><div class="probbar-track"><div class="probbar-fill" style="width:${pct}%"></div></div><div class="val">${pct}%</div><div class="angleval">∠${angleDeg}°</div></div>`;
+  });
+  html += '</div></div>';
+
+  const predAngle = (Math.acos(Math.max(-1,Math.min(1,cosines[bestIdx])))*180/Math.PI).toFixed(0);
+  html += `<div class="predict-banner"><div class="big">→ "${disp(predicted)}"</div><div class="desc">Predicted next word — its direction from the origin is closest in <b>angle</b> (${predAngle}° apart, cosine similarity ${cosines[bestIdx].toFixed(2)}) to the final signal vector (see chart below — vectors are drawn as rays from the origin so angular closeness is easy to read).</div></div>`;
+
+  // ---- chart ----
+  renderChartAnimated(seqWords, PE, X_withPos, {showFinal:true, finalVec, bestIdx});
+
+  outputEl.innerHTML = html;
+}
+
+function labeledMatSection(title, X, seqWords, PE, X_withPos){
+  let html = '<section class="block">';
+  html += '<div class="section-label"><span class="num">3</span>Signal path — input to prediction</div>';
+  html += `<div class="mrow">`;
+  html += `<div><div class="mtitle">Sequence (with vector after + PE)</div>`;
+  html += seqWords.map((w,i)=>`<span class="seq-chip" style="margin:2px 4px 2px 0;"><span class="idx">${i}</span><span class="dot" style="background:${w.color};width:7px;height:7px;border-radius:50%;display:inline-block;"></span>${disp(w)}(${i}) <span style="color:var(--ink-dim); margin-left:4px;">[${X_withPos[i][0].toFixed(2)}, ${X_withPos[i][1].toFixed(2)}]</span></span>`).join('');
+  html += `</div></div>`;
+  html += `<div class="mrow" style="margin-top:12px;">${labeledMat(title, X, {small:true})}</div>`;
+  html += '<div class="step-tag">Sinusoidal positional encoding — PE(pos,0)=sin(pos), PE(pos,1)=cos(pos), added elementwise (no learned weights)</div>';
+  html += `<div class="mrow">${labeledMat("PE (by position)", PE, {small:true})}${labeledMat("X + PE → input to Block 1", X_withPos, {small:true})}</div>`;
+  html += '</section>';
+  return html;
+}
+
+const CHART_W=720, CHART_H=720, CHART_PAD=60, CHART_RANGE=4;
+const CHART_CX=CHART_W/2, CHART_CY=CHART_H/2;
+const CHART_SCALE=(CHART_W-2*CHART_PAD)/(2*CHART_RANGE);
+function chartX(x){ return CHART_CX + x*CHART_SCALE; }
+function chartY(y){ return CHART_CY - y*CHART_SCALE; }
+
+function baseChartDefs(){
+  let s='';
+  [1,2,3].forEach(r=>{
+    s += `<circle cx="${CHART_CX}" cy="${CHART_CY}" r="${r*CHART_SCALE}" fill="none" stroke="#1c2622" stroke-width="1"/>`;
+  });
+  s += `<line x1="${chartX(-CHART_RANGE)}" y1="${chartY(0)}" x2="${chartX(CHART_RANGE)}" y2="${chartY(0)}" stroke="#233029" stroke-width="1"/>`;
+  s += `<line x1="${chartX(0)}" y1="${chartY(-CHART_RANGE)}" x2="${chartX(0)}" y2="${chartY(CHART_RANGE)}" stroke="#233029" stroke-width="1"/>`;
+  s += `<defs>
+    <marker id="arrowPos" markerWidth="7" markerHeight="7" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#dce8e0" fill-opacity="0.85"/></marker>
+    <marker id="arrowFinal" markerWidth="10" markerHeight="10" refX="7.5" refY="3.75" orient="auto"><path d="M0,0 L7.5,3.75 L0,7.5 Z" fill="#5ee6a3"/></marker>
+    <marker id="arrowShift" markerWidth="6" markerHeight="6" refX="5" refY="2.5" orient="auto"><path d="M0,0 L5,2.5 L0,5 Z" fill="#dce8e0" fill-opacity="0.85"/></marker>
+  </defs>`;
+  return s;
+}
+
+// draws the chart in two animation phases:
+//  phase 1 (immediate): vocab rays (dim/bright) + prompt tokens drawn at their RAW embedding position
+//  phase 2 (after a tick, CSS-transitioned): prompt tokens animate to their position-embedded (X+PE) coordinates
+//  phase 3 (after the shift finishes, only if showFinal): final signal ray + angle arcs + prediction fade in
+function renderChartAnimated(seqWords, PE, X_withPos, opts){
+  opts = opts || {};
+  const showFinal = !!opts.showFinal;
+  const finalVec = opts.finalVec;
+  const bestIdx = typeof opts.bestIdx === 'number' ? opts.bestIdx : -1;
+
+  const svg = document.getElementById('chartSvg');
+  svg.setAttribute('viewBox', `0 0 ${CHART_W} ${CHART_H}`);
+
+  const finalAngle = showFinal ? Math.atan2(finalVec[1], finalVec[0]) : 0;
+
+  let staticLayer = baseChartDefs();
+
+  // vocabulary rays (reference meaning of every word, always at its raw embedding — these don't move)
+  WORDS.forEach((w,i)=>{
+    const inSeq = seqWords.some(s=>s.w===w.w);
+    const isPred = showFinal && i===bestIdx;
+    const wx = chartX(w.v[0]), wy = chartY(w.v[1]);
+    const opacity = isPred ? 1 : (inSeq ? 0.25 : 0.3);
+    const strokeW = isPred ? 4 : 1.6;
+    staticLayer += `<line x1="${CHART_CX}" y1="${CHART_CY}" x2="${wx}" y2="${wy}" stroke="${w.color}" stroke-width="${strokeW}" opacity="${opacity}"/>`;
+    staticLayer += `<circle cx="${wx}" cy="${wy}" r="${isPred?9:5}" fill="${w.color}" opacity="${opacity}" stroke="${isPred?'#e6b85e':'none'}" stroke-width="${isPred?2.5:0}"/>`;
+    staticLayer += `<text x="${wx+11}" y="${wy+5}" font-size="14" fill="${isPred?'#e6b85e':'#7f958a'}" font-family="monospace" opacity="${Math.max(opacity,0.45)}">${disp(w)}${isPred?' · ∠0°':''}</text>`;
+  });
+
+  svg.innerHTML = `<g id="chartStatic">${staticLayer}</g><g id="chartPromptLayer"></g><g id="chartFinalLayer"></g>`;
+
+  // ---- prompt token layer: start at RAW embedding, will transition to X+PE ----
+  const promptLayer = document.getElementById('chartPromptLayer');
+  const tokenEls = [];
+  seqWords.forEach((w,i)=>{
+    const rawx = chartX(w.v[0]), rawy = chartY(w.v[1]);
+    const g = document.createElementNS('http://www.w3.org/2000/svg','g');
+    g.innerHTML = `
+      <line class="tok-ray" x1="${CHART_CX}" y1="${CHART_CY}" x2="${rawx}" y2="${rawy}" stroke="${w.color}" stroke-width="2.6" opacity="0.95" marker-end="url(#arrowPos)"/>
+      <circle class="tok-pt-raw" cx="${rawx}" cy="${rawy}" r="4" fill="${w.color}" opacity="0.5"/>
+      <line class="tok-shift" x1="${rawx}" y1="${rawy}" x2="${rawx}" y2="${rawy}" stroke="${w.color}" stroke-width="1.6" stroke-dasharray="5 4" opacity="0" marker-end="url(#arrowShift)"/>
+      <circle class="tok-pt" cx="${rawx}" cy="${rawy}" r="6.5" fill="${w.color}" opacity="0.95"/>
+      <text class="tok-label" x="${rawx+11}" y="${rawy+5}" font-size="13.5" fill="${w.color}" font-family="monospace">${disp(w)}(${i})</text>
+    `;
+    promptLayer.appendChild(g);
+    const ray = g.querySelector('.tok-ray');
+    const pt = g.querySelector('.tok-pt');
+    const label = g.querySelector('.tok-label');
+    const shift = g.querySelector('.tok-shift');
+    [ray,pt].forEach(el=> el.style.transition = 'all 1400ms cubic-bezier(.4,0,.2,1)');
+    label.style.transition = 'x 1400ms cubic-bezier(.4,0,.2,1), y 1400ms cubic-bezier(.4,0,.2,1)';
+    shift.style.transition = 'opacity 500ms ease';
+    tokenEls.push({w,i,ray,pt,label,shift,rawx,rawy});
+  });
+
+  // ---- trigger the PE-shift animation on the next frame ----
+  requestAnimationFrame(()=>{
+    requestAnimationFrame(()=>{
+      tokenEls.forEach(({w,i,ray,pt,label,shift,rawx,rawy})=>{
+        const px = chartX(X_withPos[i][0]), py = chartY(X_withPos[i][1]);
+        ray.setAttribute('x2', px); ray.setAttribute('y2', py);
+        pt.setAttribute('cx', px); pt.setAttribute('cy', py);
+        label.setAttribute('x', px+11); label.setAttribute('y', py+5);
+        // dashed arrow from the original vector head to the new (PE-shifted) head,
+        // drawn at its final geometry immediately, revealed once the point has mostly arrived
+        shift.setAttribute('x2', px); shift.setAttribute('y2', py);
+        setTimeout(()=>{ shift.style.opacity = '0.85'; }, 900);
+      });
+    });
+  });
+
+  // ---- phase 3: final signal + arcs + prediction, fading in after the shift settles ----
+  const finalLayer = document.getElementById('chartFinalLayer');
+  finalLayer.innerHTML = '';
+  if(showFinal){
+    setTimeout(()=>{      const fx = chartX(finalVec[0]), fy = chartY(finalVec[1]);
+      let s = `<g style="opacity:0; transition:opacity 500ms ease;">`;
+      s += `<line x1="${CHART_CX}" y1="${CHART_CY}" x2="${fx}" y2="${fy}" stroke="#5ee6a3" stroke-width="3.5" marker-end="url(#arrowFinal)"/>`;
+      s += `<text x="${fx+13}" y="${fy-13}" font-size="15.5" fill="#5ee6a3" font-family="monospace">final signal</text>`;
+
+      seqWords.forEach((w,i)=>{
+        const px = X_withPos[i][0], py = X_withPos[i][1];
+        const wAngle = Math.atan2(py, px);
+        let diff = wAngle - finalAngle;
+        while(diff > Math.PI) diff -= 2*Math.PI;
+        while(diff < -Math.PI) diff += 2*Math.PI;
+        const arcR = 38 + i*4.5;
+        const a0 = finalAngle, a1 = finalAngle + diff;
+        const sx = CHART_CX + arcR*Math.cos(-a0), sy = CHART_CY + arcR*Math.sin(-a0);
+        const ex = CHART_CX + arcR*Math.cos(-a1), ey = CHART_CY + arcR*Math.sin(-a1);
+        const largeArc = Math.abs(diff) > Math.PI ? 1 : 0;
+        const sweep = diff > 0 ? 1 : 0;
+        s += `<path d="M ${sx} ${sy} A ${arcR} ${arcR} 0 ${largeArc} ${sweep} ${ex} ${ey}" fill="none" stroke="${w.color}" stroke-width="1.8" opacity="0.65"/>`;
+      });
+
+      s += `</g>`;
+      finalLayer.innerHTML = s;
+      requestAnimationFrame(()=>{
+        const g = finalLayer.querySelector('g');
+        if(g) g.style.opacity = '1';
+      });
+    }, 1500);
+  }
+
+  renderChartLegend(showFinal);
+}
+
+function renderChartLegend(showFinal){
+  const legend = document.getElementById('chartLegend');
+  legend.innerHTML = `
+    <div class="item"><span class="sw" style="background:#7f958a; opacity:0.6;"></span>Every vocabulary word, ray from origin (dim = reference meaning, doesn't move)</div>
+    <div class="item"><span class="sw" style="background:#dce8e0;"></span>Prompt tokens — animate from raw embedding → position-embedded point (sinusoidal PE)</div>
+    <div class="item"><span class="sw" style="background:transparent; border-top:1px dashed #dce8e0; width:14px; height:0; border-radius:0;"></span>Dashed arrow — from the original vector's head to its new (PE-shifted) head</div>
+    ${showFinal ? `
+    <div class="item"><span class="sw" style="border:2px solid #5ee6a3; background:transparent;"></span>Final signal — direction (angle) is what carries meaning, not length</div>
+    <div class="item"><span class="sw" style="background:#e6b85e;"></span>Predicted word — smallest angle to the final signal</div>
+    <div class="item" style="margin-top:4px; color:var(--ink-dim);">Arcs show the angle ∠ between each token's position-embedded ray and the final signal — smaller arc = higher softmax probability.</div>
+    ` : `
+    <div class="item" style="margin-top:4px; color:var(--ink-dim);">Run the transformer to see the final signal, angle arcs, and predicted word appear.</div>
+    `}
+  `;
+}
+
+renderChartAnimated([], [], [], {showFinal:false});
+
+})();
+</script>
+</body>
+</html>
