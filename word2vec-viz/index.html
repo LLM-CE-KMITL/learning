@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<title>CBOW Trainer — 2D Embedding Lab</title>
+<style>
+  :root{
+    --bg: #0b0f14;
+    --panel: #10161d;
+    --panel-2: #141b23;
+    --line: #1f2a35;
+    --ink: #dbe6ef;
+    --muted: #64798d;
+    --teal: #45d9c0;
+    --magenta: #ff5f9e;
+    --amber: #ffb454;
+    --pos: #3aa0ff;
+    --neg: #ff6b6b;
+    --mono: 'JetBrains Mono', 'Space Mono', monospace;
+    --disp: 'Space Grotesk', 'Segoe UI', sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body{
+    margin:0; background:
+      radial-gradient(circle at 15% 0%, #0e141c 0%, var(--bg) 55%);
+    color:var(--ink); font-family: var(--mono);
+    min-height:100vh; padding: 28px 20px 60px;
+  }
+  .wrap{ max-width:1180px; margin:0 auto; }
+  header{ margin-bottom:22px; }
+  .eyebrow{
+    font-size:11px; letter-spacing:.18em; text-transform:uppercase;
+    color:var(--teal); margin-bottom:8px; font-weight:600;
+  }
+  h1{
+    font-family: var(--disp); font-size:30px; margin:0 0 6px; font-weight:700;
+    letter-spacing:-0.01em;
+  }
+  p.sub{ color:var(--muted); margin:0; font-size:13.5px; max-width:640px; line-height:1.55;}
+
+  .grid{
+    display:grid; grid-template-columns: 1.15fr 0.85fr; gap:16px; margin-top:22px;
+  }
+  @media (max-width:920px){ .grid{ grid-template-columns:1fr; } }
+
+  .panel{
+    background: var(--panel); border:1px solid var(--line); border-radius:10px;
+    padding:16px 18px;
+  }
+  .panel + .panel{ margin-top:16px; }
+  .panel h2{
+    font-family:var(--disp); font-size:13px; text-transform:uppercase; letter-spacing:.08em;
+    margin:0 0 12px; color:var(--ink); display:flex; align-items:center; gap:8px;
+  }
+  .panel h2 .tag{
+    font-family:var(--mono); font-size:10px; color:var(--muted); border:1px solid var(--line);
+    border-radius:4px; padding:2px 6px; text-transform:none; letter-spacing:0;
+  }
+
+  textarea{
+    width:100%; min-height:64px; resize:vertical; background:#0b1015; color:var(--ink);
+    border:1px solid var(--line); border-radius:6px; padding:10px 12px; font-family:var(--mono);
+    font-size:13px; line-height:1.5;
+  }
+  select{
+    background:#0b1015; color:var(--ink); border:1px solid var(--line); border-radius:6px;
+    padding:6px 8px; font-family:var(--mono); font-size:12px;
+  }
+  .row{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:10px;}
+  label.small{ font-size:11px; color:var(--muted); }
+
+  button{
+    font-family:var(--mono); font-size:12px; border-radius:6px; padding:8px 14px;
+    border:1px solid var(--line); background:#141b23; color:var(--ink); cursor:pointer;
+    transition: all .15s ease;
+  }
+  button:hover{ border-color:var(--teal); color:var(--teal); }
+  button.primary{ background:var(--teal); color:#06201b; border-color:var(--teal); font-weight:700; }
+  button.primary:hover{ filter:brightness(1.08); color:#06201b; }
+  button:disabled{ opacity:.4; cursor:not-allowed; }
+
+  #canvasWrap{ position:relative; }
+  #lossChart{ width:100%; height:140px; display:block; background:#0b1015; border-radius:8px; border:1px solid var(--line); }
+  canvas{ width:100%; display:block; background:
+      linear-gradient(var(--line) 1px, transparent 1px) 0 0/28px 28px,
+      linear-gradient(90deg, var(--line) 1px, transparent 1px) 0 0/28px 28px,
+      #0b1015;
+    border-radius:8px; border:1px solid var(--line);
+  }
+
+  .statbar{ display:flex; gap:18px; margin-top:12px; flex-wrap:wrap; }
+  .stat{ font-size:11px; color:var(--muted); }
+  .stat b{ color:var(--teal); font-size:14px; display:block; font-family:var(--disp); }
+
+  .textflow{ line-height:2.4; font-size:14px; word-spacing:2px; }
+  .textflow span{ padding:2px 5px; border-radius:4px; margin:0 1px; display:inline-block; color:var(--muted); }
+  .textflow span.ctx{ background:rgba(69,217,192,.16); color:var(--teal); }
+  .textflow span.center{ background:var(--magenta); color:#2a0016; font-weight:700; }
+
+  table.mat{ border-collapse:collapse; width:100%; font-size:11px; }
+  table.mat th{ color:var(--muted); font-weight:500; text-align:right; padding:3px 6px; border-bottom:1px solid var(--line);}
+  table.mat td{ text-align:right; padding:3px 6px; border-bottom:1px dashed #1a222c; color:#dbe6ef; }
+  table.mat td.word{ text-align:left; color:var(--amber); font-weight:600;}
+  .mat-wrap{ max-height:230px; overflow-y:auto; }
+
+  .predlist{ display:flex; flex-direction:column; gap:6px; margin-top:4px; }
+  .predrow{ display:flex; align-items:center; gap:8px; font-size:12px; }
+  .predrow .w{ width:80px; flex-shrink:0; color:var(--ink); }
+  .predrow .bar{ flex:1; height:8px; background:#0b1015; border-radius:4px; overflow:hidden; border:1px solid var(--line);}
+  .predrow .bar i{ display:block; height:100%; background:linear-gradient(90deg,var(--teal),var(--pos)); }
+  .predrow .p{ width:46px; text-align:right; color:var(--muted); font-size:11px; }
+  .predrow.hit .w{ color:var(--magenta); font-weight:700; }
+
+  .hbox{
+    background:#0b1015; border:1px solid var(--line); border-radius:8px; padding:8px 14px; min-width:88px;
+  }
+  .hbox-label{ font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; }
+  .hbox-val{ font-family:var(--disp); font-size:20px; color:var(--teal); font-weight:700; margin-top:2px; }
+
+  .vecgrid{
+    display:grid; grid-template-columns:repeat(auto-fill, minmax(150px,1fr)); gap:6px 10px; font-size:11.5px;
+  }
+  .vecgrid .vitem{
+    display:flex; justify-content:space-between; gap:6px; padding:4px 8px; background:#0b1015;
+    border:1px solid var(--line); border-radius:6px;
+  }
+  .vecgrid .vitem .vw{ color:var(--amber); font-weight:600; }
+  .vecgrid .vitem .vv{ color:var(--ink); }
+
+  ::-webkit-scrollbar{ width:8px; height:8px; }
+  ::-webkit-scrollbar-thumb{ background:var(--line); border-radius:4px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">// embedding lab</div>
+    <h1>CBOW Trainer — 2D Word Vectors</h1>
+    <p class="sub">Type an English sentence below. The system builds a vocabulary and trains CBOW
+    (Continuous Bag-of-Words) on 2D embeddings in real time — watch vectors move, matrices update,
+    and the sliding window step through the text.</p>
+  </header>
+
+  <div class="panel">
+    <h2>Input text <span class="tag">tokenize by space</span></h2>
+    <textarea id="inputText">the king loves the queen the queen loves the king the king rules the land the queen rules the land the king is strong the queen is wise the king and the queen rule the land together the king loves the queen and the queen loves the king the people love the king the people love the queen the king protects the people the queen protects the people the king and the queen protect the land the king is strong and the queen is wise and the people love them both the king rules with the queen the queen rules with the king they love the land and the land loves them</textarea>
+    <div class="row">
+      <select id="sampleSelect">
+        <option value="">— choose a sample text —</option>
+        <option value="0">Royalty: king &amp; queen (112 words, 20 unique)</option>
+        <option value="1">Animals: cat &amp; dog (124 words, 19 unique)</option>
+        <option value="2">Countries &amp; capitals (118 words, 26 unique)</option>
+        <option value="3">Fruit &amp; color (141 words, 27 unique)</option>
+      </select>
+      <label class="small">window size
+        <select id="windowSize">
+          <option value="1">1</option>
+          <option value="2" selected>2</option>
+          <option value="3">3</option>
+        </select>
+      </label>
+      <label class="small">learning rate
+        <select id="lr">
+          <option value="0.005">0.005</option>
+          <option value="0.01">0.01</option>
+          <option value="0.02">0.02</option>
+          <option value="0.05">0.05</option>
+          <option value="0.1">0.10</option>
+          <option value="0.2">0.20</option>
+          <option value="0.3">0.30</option>
+          <option value="0.5">0.50</option>
+          <option value="1" selected>1.00</option>
+        </select>
+      </label>
+      <label class="small">batch size
+        <select id="batchSize">
+          <option value="1">1 (SGD, per word)</option>
+          <option value="5">5</option>
+          <option value="10" selected>10</option>
+          <option value="all">all (full epoch)</option>
+        </select>
+      </label>
+      <label class="small">speed
+        <select id="speed">
+          <option value="700">Slow</option>
+          <option value="350">Normal</option>
+          <option value="120">Fast</option>
+          <option value="40">Very Fast</option>
+          <option value="8" selected>Super Fast</option>
+        </select>
+      </label>
+      <button id="buildBtn" class="primary">Build vocab &amp; reset</button>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div>
+      <div class="panel">
+        <h2>Embedding space <span class="tag" id="vocabTag">vocab: 0</span></h2>
+        <div id="canvasWrap"><canvas id="scatter" width="700" height="420"></canvas></div>
+        <div class="statbar">
+          <div class="stat"><b id="epochStat">0</b>epoch</div>
+          <div class="stat"><b id="stepStat">0</b>position in epoch (word being trained)</div>
+          <div class="stat"><b id="lossStat">–</b>loss (current token)</div>
+          <div class="stat"><b id="statusStat">Ready</b>status</div>
+        </div>
+        <div class="row">
+          <button id="playBtn" class="primary">▶ Play</button>
+          <button id="stepBtn">Step ⇥</button>
+          <button id="resetBtn">↺ Reset weights</button>
+          <button id="fitViewBtn">⤢ Fit view</button>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Sliding window <span class="tag">context → center</span></h2>
+        <div class="textflow" id="textFlow">—</div>
+      </div>
+
+      <div class="panel">
+        <h2>Hidden layer <span class="tag">h = average of context vectors</span></h2>
+        <div class="row" style="margin-top:0;">
+          <div class="hbox">
+            <div class="hbox-label">h[0]</div>
+            <div class="hbox-val" id="hVal0">–</div>
+          </div>
+          <div class="hbox">
+            <div class="hbox-label">h[1]</div>
+            <div class="hbox-val" id="hVal1">–</div>
+          </div>
+          <div style="flex:1; font-size:11px; color:var(--muted); line-height:1.5;" id="hFormula">
+            waiting for a training step…
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="panel">
+        <h2>Prediction <span class="tag">softmax over vocab</span></h2>
+        <div class="predlist" id="predList"><div class="stat">waiting to start…</div></div>
+      </div>
+
+      <div class="panel">
+        <h2>Loss <span class="tag" id="lossTag">history</span></h2>
+        <canvas id="lossChart" width="420" height="140"></canvas>
+      </div>
+
+      <div class="panel">
+        <h2>Word vectors <span class="tag">latest embedding per word</span></h2>
+        <div class="mat-wrap">
+          <div class="vecgrid" id="vecGrid"></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>W<sub>in</sub> — input embedding <span class="tag">vocab × 2</span></h2>
+        <div class="mat-wrap">
+          <table class="mat" id="matIn"><thead><tr><th style="text-align:left">word</th><th>dim 1</th><th>dim 2</th><th>Δ</th></tr></thead><tbody></tbody></table>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>W<sub>out</sub> — output layer <span class="tag">vocab × 2</span></h2>
+        <div class="mat-wrap">
+          <table class="mat" id="matOut"><thead><tr><th style="text-align:left">word</th><th>dim 1</th><th>dim 2</th><th>Δ</th></tr></thead><tbody></tbody></table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer style="margin-top:24px; text-align:center; font-size:11px; color:var(--muted); letter-spacing:.03em;">
+    Credit by <span style="color:var(--teal); font-weight:600;">SAIG Lab</span> · CE-KMITL &nbsp;·&nbsp; Powered by <span style="color:var(--amber); font-weight:600;">Claude</span>
+  </footer>
+</div>
+
+<script>
+const SAMPLES = [
+  "the king loves the queen the queen loves the king the king rules the land the queen rules the land the king is strong the queen is wise the king and the queen rule the land together the king loves the queen and the queen loves the king the people love the king the people love the queen the king protects the people the queen protects the people the king and the queen protect the land the king is strong and the queen is wise and the people love them both the king rules with the queen the queen rules with the king they love the land and the land loves them",
+  "the cat sat on the mat the dog sat on the rug the cat chased the dog the dog chased the cat the cat ran to the garden the dog ran to the yard the cat played in the garden the dog played in the yard the cat and the dog slept on the mat the dog and the cat slept on the rug the cat loves the dog the dog loves the cat they played in the garden and the yard the cat sat on the mat and the dog sat on the rug the cat chased the dog in the garden the dog chased the cat in the yard the cat and the dog slept together on the mat and the rug",
+  "paris is the capital of france rome is the capital of italy berlin is the capital of germany madrid is the capital of spain paris is a big city rome is a big city berlin is a big city madrid is a big city france is in europe italy is in europe germany is in europe spain is in europe people in paris speak french people in rome speak italian people in berlin speak german people in madrid speak spanish paris and rome are both in europe berlin and madrid are both in europe the capital of france is paris the capital of italy is rome the capital of germany is berlin the capital of spain is madrid",
+  "the apple is red the banana is yellow the grape is purple the lime is green the cherry is red the lemon is yellow the apple is sweet the banana is sweet the grape is sweet the lime is sour the cherry is sweet the lemon is sour the apple grows on a tree the banana grows on a tree the grape grows on a vine the lime grows on a tree the cherry grows on a tree the lemon grows on a tree people eat the apple people eat the banana people eat the grape people eat the lime people eat the cherry people eat the lemon the red apple and the yellow banana are on the table the purple grape and the green lime are in the bowl the red cherry and the yellow lemon are in the basket"
+];
+
+let tokens = [], vocab = [], vocabIndex = {}, Win = [], Wout = [];
+let renderWin = [], prevWin = [], animStart = 0, animDur = 1;
+let step = 0, epoch = 0, playing = false, timer = null;
+let lastTarget = -1, lastProbs = null, lastCtxIdx = [], lastLoss = null;
+let vocabSize = 0, windowSize = 2, lr = 1, speedMs = 8;
+let batchSizeSetting = '10'; // '1' | '5' | '10' | 'all'
+let lossHistory = [];      // one point per completed epoch (avg loss)
+let lossHistoryFull = [];  // full history, uncapped, used for moving average + stable scale
+let allTimeMaxLoss = 0.5;
+let prevWinSnapshot = [], prevWoutSnapshot = [];
+const LOSS_MAX_POINTS = 220;
+const SMOOTH_WINDOW = 8;
+
+// epoch-batched gradient accumulators
+let epochPos = 0;          // token position within the current epoch
+let gradWin = [], gradWout = [];
+let epochLossSum = 0, epochLossCount = 0;
+let batchLossSum = 0, batchLossCount = 0;
+
+const canvas = document.getElementById('scatter');
+const ctx = canvas.getContext('2d');
+const lossCanvas = document.getElementById('lossChart');
+const lossCtx = lossCanvas.getContext('2d');
+
+function rnd(scale){ return (Math.random()*2-1)*scale; }
+
+function buildVocab(){
+  const raw = document.getElementById('inputText').value.trim();
+  tokens = raw.split(/\s+/).filter(Boolean);
+  vocab = []; vocabIndex = {};
+  tokens.forEach(t=>{ if(!(t in vocabIndex)){ vocabIndex[t]=vocab.length; vocab.push(t);} });
+  vocabSize = vocab.length;
+  windowSize = parseInt(document.getElementById('windowSize').value);
+  lr = parseFloat(document.getElementById('lr').value);
+  speedMs = parseInt(document.getElementById('speed').value);
+  batchSizeSetting = document.getElementById('batchSize').value;
+  document.getElementById('vocabTag').textContent = 'vocab: ' + vocabSize;
+  resetWeights();
+  renderTextFlow(-1, []);
+  renderMatrix();
+  renderPred(null, null, -1);
+}
+
+function resetWeights(){
+  Win = vocab.map(()=>[rnd(1), rnd(1)]);
+  Wout = vocab.map(()=>[rnd(1), rnd(1)]);
+  renderWin = Win.map(v=>v.slice());
+  prevWin = Win.map(v=>v.slice());
+  step = 0; epoch = 0; lastLoss = null;
+  lossHistory = []; lossHistoryFull = []; allTimeMaxLoss = 0.5;
+  epochPos = 0; epochLossSum = 0; epochLossCount = 0;
+  batchLossSum = 0; batchLossCount = 0;
+  gradWin = vocab.map(()=>[0,0]);
+  gradWout = vocab.map(()=>[0,0]);
+  prevWinSnapshot = Win.map(v=>v.slice());
+  prevWoutSnapshot = Wout.map(v=>v.slice());
+  animStart = performance.now(); animDur = 1;
+  fitView();
+  updateStats();
+  drawScatter(1);
+  renderMatrix();
+  drawLossChart();
+}
+
+function softmax(scores){
+  const m = Math.max(...scores);
+  const ex = scores.map(s=>Math.exp(s-m));
+  const sum = ex.reduce((a,b)=>a+b,0);
+  return ex.map(e=>e/sum);
+}
+
+function trainStep(){
+  if(tokens.length < 2) return;
+  const i = epochPos;
+  const centerWord = tokens[i];
+  const centerIdx = vocabIndex[centerWord];
+
+  let ctxIdx = [];
+  for(let d=-windowSize; d<=windowSize; d++){
+    if(d===0) continue;
+    const j = i+d;
+    if(j>=0 && j<tokens.length) ctxIdx.push(vocabIndex[tokens[j]]);
+  }
+
+  if(ctxIdx.length > 0){
+    // forward pass uses weights as they were at the START of this batch (frozen
+    // until the batch is complete) — mini-batch gradient descent
+    let h = [0,0];
+    ctxIdx.forEach(ci=>{ h[0]+=Win[ci][0]; h[1]+=Win[ci][1]; });
+    h[0]/=ctxIdx.length; h[1]/=ctxIdx.length;
+
+    const scores = Wout.map(w => w[0]*h[0] + w[1]*h[1]);
+    const probs = softmax(scores);
+    const loss = -Math.log(Math.max(probs[centerIdx], 1e-9));
+
+    const dscores = probs.slice();
+    dscores[centerIdx] -= 1;
+
+    const dh = [0,0];
+    for(let v=0; v<vocabSize; v++){
+      dh[0] += dscores[v]*Wout[v][0];
+      dh[1] += dscores[v]*Wout[v][1];
+      // accumulate Wout gradient for this example
+      gradWout[v][0] += dscores[v]*h[0];
+      gradWout[v][1] += dscores[v]*h[1];
+    }
+    ctxIdx.forEach(ci=>{
+      gradWin[ci][0] += dh[0]/ctxIdx.length;
+      gradWin[ci][1] += dh[1]/ctxIdx.length;
+    });
+
+    lastTarget = centerIdx; lastProbs = probs; lastCtxIdx = ctxIdx; lastLoss = loss;
+    epochLossSum += loss; epochLossCount++;
+    batchLossSum += loss; batchLossCount++;
+
+    renderTextFlowByPosition(i);
+    renderPred(probs, centerIdx, centerIdx);
+    renderHiddenLayer(h, ctxIdx, centerWord);
+  } else {
+    renderTextFlowByPosition(i);
+    renderHiddenLayer(null, [], centerWord);
+  }
+
+  epochPos++;
+  step = epochPos;
+
+  const targetBatchSize = batchSizeSetting === 'all' ? tokens.length : parseInt(batchSizeSetting);
+  const batchDone = batchLossCount >= targetBatchSize;
+  const epochDone = epochPos >= tokens.length;
+
+  if(batchDone || epochDone){
+    // batch (or epoch) complete: apply the AVERAGED accumulated gradient once
+    prevWinSnapshot = Win.map(v=>v.slice());
+    prevWoutSnapshot = Wout.map(v=>v.slice());
+    prevWin = renderWin.map(v=>v.slice());
+
+    const N = Math.max(batchLossCount, 1);
+    for(let v=0; v<vocabSize; v++){
+      Wout[v][0] -= lr * gradWout[v][0]/N;
+      Wout[v][1] -= lr * gradWout[v][1]/N;
+      Win[v][0]  -= lr * gradWin[v][0]/N;
+      Win[v][1]  -= lr * gradWin[v][1]/N;
+    }
+
+    const avgLoss = batchLossSum / N;
+    lossHistory.push(avgLoss);
+    if(lossHistory.length > LOSS_MAX_POINTS) lossHistory.shift();
+    lossHistoryFull.push(avgLoss);
+    if(avgLoss > allTimeMaxLoss) allTimeMaxLoss = avgLoss;
+
+    animStart = performance.now(); animDur = Math.max(speedMs*1.6, 220);
+
+    gradWin = vocab.map(()=>[0,0]);
+    gradWout = vocab.map(()=>[0,0]);
+    batchLossSum = 0; batchLossCount = 0;
+
+    renderMatrix();
+    drawLossChart();
+  }
+
+  if(epochDone){
+    epoch++;
+    epochPos = 0; step = 0;
+    epochLossSum = 0; epochLossCount = 0;
+  }
+
+  updateStats();
+}
+
+function renderTextFlowByPosition(centerPos){
+  const el = document.getElementById('textFlow');
+  el.innerHTML = '';
+  tokens.forEach((t,pos)=>{
+    const span = document.createElement('span');
+    span.textContent = t;
+    if(pos===centerPos) span.className='center';
+    else if(Math.abs(pos-centerPos)<=windowSize) span.className='ctx';
+    el.appendChild(span);
+  });
+}
+function renderTextFlow(centerPos, ctxIdx){
+  if(centerPos<0){
+    const el = document.getElementById('textFlow');
+    el.innerHTML = '';
+    tokens.forEach(t=>{
+      const span = document.createElement('span');
+      span.textContent = t; el.appendChild(span);
+    });
+  }
+}
+
+function renderPred(probs, targetIdx, hitIdx){
+  const el = document.getElementById('predList');
+  if(!probs){ el.innerHTML = '<div class="stat">waiting to start…</div>'; return; }
+  const ranked = probs.map((p,i)=>({w:vocab[i], p, i})).sort((a,b)=>b.p-a.p).slice(0,6);
+  el.innerHTML = '';
+  ranked.forEach(r=>{
+    const row = document.createElement('div');
+    row.className = 'predrow' + (r.i===targetIdx ? ' hit' : '');
+    row.innerHTML = `<div class="w">${r.w}</div><div class="bar"><i style="width:${(r.p*100).toFixed(1)}%"></i></div><div class="p">${(r.p*100).toFixed(1)}%</div>`;
+    el.appendChild(row);
+  });
+}
+
+function renderHiddenLayer(h, ctxIdx, centerWord){
+  const el0 = document.getElementById('hVal0');
+  const el1 = document.getElementById('hVal1');
+  const formula = document.getElementById('hFormula');
+  if(!h){
+    el0.textContent = '–'; el1.textContent = '–';
+    formula.textContent = 'no context available for "' + centerWord + '" at the edge of the text';
+    return;
+  }
+  el0.textContent = h[0].toFixed(3);
+  el1.textContent = h[1].toFixed(3);
+  const ctxWords = ctxIdx.map(ci=>vocab[ci]);
+  formula.textContent = 'h = average( Win[ ' + ctxWords.join(', ') + ' ] )  →  predicting "' + centerWord + '"';
+}
+
+function renderWordVectors(){
+  const grid = document.getElementById('vecGrid');
+  grid.innerHTML = '';
+  vocab.forEach((w,i)=>{
+    const v = Win[i] || [0,0];
+    const item = document.createElement('div');
+    item.className = 'vitem';
+    item.innerHTML = `<span class="vw">${w}</span><span class="vv">(${v[0].toFixed(3)}, ${v[1].toFixed(3)})</span>`;
+    grid.appendChild(item);
+  });
+}
+
+function cellColor(val){
+  const a = Math.min(Math.abs(val)/2.2, 1);
+  const col = val>=0 ? `rgba(58,160,255,${0.12+a*0.55})` : `rgba(255,107,107,${0.12+a*0.55})`;
+  return `background:${col}`;
+}
+
+function renderMatrixTable(tbodySel, W, prevW, highlightIdx){
+  const tbody = document.querySelector(tbodySel);
+  tbody.innerHTML = '';
+  vocab.forEach((w,i)=>{
+    const tr = document.createElement('tr');
+    if(highlightIdx && highlightIdx.includes(i)) tr.style.outline = '1px solid #45d9c0';
+    const v = W[i] || [0,0];
+    const pv = (prevW[i]) || v;
+    const delta = Math.sqrt((v[0]-pv[0])**2 + (v[1]-pv[1])**2);
+    const deltaStr = delta < 0.0005 ? '·' : (delta>=0 ? '+' : '') + delta.toFixed(3);
+    const deltaColor = delta < 0.0005 ? 'color:#3a4a5a' : 'color:#ffb454';
+    tr.innerHTML = `<td class="word">${w}</td><td style="${cellColor(v[0])}">${v[0].toFixed(2)}</td><td style="${cellColor(v[1])}">${v[1].toFixed(2)}</td><td style="${deltaColor}">${deltaStr}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+function renderMatrix(){
+  renderMatrixTable('#matIn tbody', Win, prevWinSnapshot, lastCtxIdx);
+  renderMatrixTable('#matOut tbody', Wout, prevWoutSnapshot, lastTarget>=0 ? [lastTarget] : []);
+  renderWordVectors();
+}
+
+function movingAverage(arr, w){
+  const out = [];
+  let sum = 0;
+  for(let i=0;i<arr.length;i++){
+    sum += arr[i];
+    if(i>=w) sum -= arr[i-w];
+    out.push(sum / Math.min(i+1, w));
+  }
+  return out;
+}
+
+function drawLossChart(){
+  const W = lossCanvas.width, H = lossCanvas.height;
+  lossCtx.clearRect(0,0,W,H);
+
+  const n = lossHistory.length;
+  const smoothedFull = movingAverage(lossHistoryFull, SMOOTH_WINDOW);
+  const smoothed = smoothedFull.slice(-LOSS_MAX_POINTS);
+  const startVal = smoothedFull.length ? smoothedFull[0] : null;
+  const curVal = smoothedFull.length ? smoothedFull[smoothedFull.length-1] : null;
+
+  let trendTxt = 'history';
+  if(startVal!==null && curVal!==null && smoothedFull.length > SMOOTH_WINDOW){
+    const diff = curVal - startVal;
+    trendTxt = (diff<=0 ? '↓ ' : '↑ ') + Math.abs(diff).toFixed(3) + ' since start';
+  }
+  document.getElementById('lossTag').textContent =
+    (lastLoss!==null ? 'now: ' + lastLoss.toFixed(3) + '  ·  ' : '') + trendTxt;
+
+  // gridlines
+  lossCtx.strokeStyle = '#1a232c'; lossCtx.lineWidth = 1;
+  for(let gy=0; gy<=4; gy++){
+    const y = 10 + gy*(H-24)/4;
+    lossCtx.beginPath(); lossCtx.moveTo(28,y); lossCtx.lineTo(W-6,y); lossCtx.stroke();
+  }
+
+  if(n < 2){
+    lossCtx.fillStyle = '#4a5c6e'; lossCtx.font = '11px monospace';
+    lossCtx.fillText('waiting for loss data…', 34, H/2);
+    return;
+  }
+
+  // stable y-axis: never shrinks mid-training, so a real downward trend stays visible
+  const maxLoss = allTimeMaxLoss * 1.05;
+  const minLoss = 0;
+  const plotLeft = 30, plotRight = W-8, plotTop = 10, plotBottom = H-18;
+  const yOf = (l) => plotBottom - ((l-minLoss)/(maxLoss-minLoss||1))*(plotBottom-plotTop);
+  const xOf = (idx) => plotLeft + (idx/(n-1))*(plotRight-plotLeft);
+
+  lossCtx.fillStyle = '#4a5c6e'; lossCtx.font = '9px monospace';
+  lossCtx.fillText(maxLoss.toFixed(1), 2, plotTop+8);
+  lossCtx.fillText('0', 10, plotBottom+2);
+
+  // raw per-token loss: faint, shows the noise
+  lossCtx.beginPath();
+  lossHistory.forEach((l,idx)=>{
+    const x = xOf(idx), y = yOf(l);
+    if(idx===0) lossCtx.moveTo(x,y); else lossCtx.lineTo(x,y);
+  });
+  lossCtx.strokeStyle = 'rgba(100,121,141,0.55)'; lossCtx.lineWidth = 1; lossCtx.stroke();
+
+  // smoothed moving average: bold, shows the real trend
+  lossCtx.beginPath();
+  smoothed.forEach((l,idx)=>{
+    const x = xOf(idx), y = yOf(l);
+    if(idx===0) lossCtx.moveTo(x,y); else lossCtx.lineTo(x,y);
+  });
+  lossCtx.strokeStyle = '#45d9c0'; lossCtx.lineWidth = 2; lossCtx.stroke();
+
+  const lastY = yOf(smoothed[smoothed.length-1]);
+  lossCtx.beginPath(); lossCtx.arc(plotRight-2, lastY, 3, 0, Math.PI*2);
+  lossCtx.fillStyle = '#ff5f9e'; lossCtx.fill();
+}
+
+function updateStats(){
+  document.getElementById('epochStat').textContent = epoch;
+  document.getElementById('stepStat').textContent = epochPos + ' / ' + tokens.length;
+  document.getElementById('lossStat').textContent = lastLoss===null ? '–' : lastLoss.toFixed(3);
+  document.getElementById('statusStat').textContent = playing ? 'Training…' : (epoch>0 || epochPos>0 ? 'Paused' : 'Ready');
+}
+
+function lerp(a,b,t){ return a+(b-a)*t; }
+
+// persistent camera state for the embedding space (like a map viewport)
+let view = { scale: 90, cx: 0, cy: 0 }; // scale = pixels per data-unit, (cx,cy) = data coords at canvas center
+const ZOOM_MIN = 15, ZOOM_MAX = 4000;
+
+function fitView(){
+  let maxAbs = 1.2;
+  renderWin.forEach(v=>{ maxAbs = Math.max(maxAbs, Math.abs(v[0]), Math.abs(v[1])); });
+  maxAbs *= 1.25;
+  const W = canvas.width, H = canvas.height;
+  view.scale = (Math.min(W,H)/2 - 30) / maxAbs;
+  view.cx = 0; view.cy = 0;
+}
+
+function canvasPointFromEvent(evt){
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / rect.width;
+  const scaleY = canvas.height / rect.height;
+  return [ (evt.clientX-rect.left)*scaleX, (evt.clientY-rect.top)*scaleY ];
+}
+
+function paintScatter(){
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0,0,W,H);
+
+  const toPx = (x,y)=>[ W/2 + (x-view.cx)*view.scale, H/2 - (y-view.cy)*view.scale ];
+
+  // axes (data x=0 / y=0), drawn as straight lines across the visible canvas
+  ctx.strokeStyle = '#233040'; ctx.lineWidth = 1;
+  const py0 = H/2 + view.cy*view.scale; // pixel row for data y=0
+  const px0 = W/2 - view.cx*view.scale; // pixel col for data x=0
+  ctx.beginPath();
+  ctx.moveTo(0, py0); ctx.lineTo(W, py0);
+  ctx.moveTo(px0, 0); ctx.lineTo(px0, H);
+  ctx.stroke();
+
+  renderWin.forEach((v,i)=>{
+    const [px,py] = toPx(v[0], v[1]);
+    if(px<-20||px>W+20||py<-20||py>H+20) return; // cull off-screen labels for perf
+    const isCenter = i===lastTarget;
+    const isCtx = lastCtxIdx.includes(i);
+    ctx.beginPath();
+    ctx.arc(px, py, isCenter?7:5, 0, Math.PI*2);
+    ctx.fillStyle = isCenter ? '#ff5f9e' : (isCtx ? '#45d9c0' : '#5a7086');
+    ctx.fill();
+    if(isCenter){
+      ctx.beginPath(); ctx.arc(px,py,11,0,Math.PI*2);
+      ctx.strokeStyle = 'rgba(255,95,158,.6)'; ctx.lineWidth=2; ctx.stroke();
+    }
+    ctx.font = '12px "JetBrains Mono", monospace';
+    ctx.fillStyle = isCenter ? '#ff9dc4' : (isCtx ? '#8ff0dd' : '#8fa3b8');
+    ctx.fillText(vocab[i], px+9, py-9);
+  });
+
+  // zoom level readout
+  ctx.font = '10px "JetBrains Mono", monospace';
+  ctx.fillStyle = '#3a4a5a';
+  ctx.fillText('zoom ' + (view.scale/90).toFixed(2) + '×  ·  scroll to zoom, drag to pan', 8, H-8);
+}
+
+function drawScatter(forceT){
+  const t = forceT!==undefined ? forceT : Math.min(1, (performance.now()-animStart)/animDur);
+  renderWin = Win.map((v,i)=>{
+    const pv = prevWin[i] || v;
+    return [lerp(pv[0], v[0], t), lerp(pv[1], v[1], t)];
+  });
+  paintScatter();
+  if(t<1) requestAnimationFrame(()=>drawScatter());
+}
+
+// --- Google-Maps-style interaction: zoom centered on cursor, drag to pan ---
+let isPanning = false, panStart = null, panStartView = null;
+
+canvas.addEventListener('wheel', (evt)=>{
+  evt.preventDefault();
+  const [mx,my] = canvasPointFromEvent(evt);
+  const W = canvas.width, H = canvas.height;
+
+  // data coordinate currently under the cursor
+  const dataX = view.cx + (mx - W/2)/view.scale;
+  const dataY = view.cy - (my - H/2)/view.scale;
+
+  const factor = evt.deltaY < 0 ? 1.18 : 1/1.18;
+  const newScale = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, view.scale*factor));
+
+  // shift center so the same data point stays under the cursor
+  view.cx = dataX - (mx - W/2)/newScale;
+  view.cy = dataY + (my - H/2)/newScale;
+  view.scale = newScale;
+
+  paintScatter();
+}, { passive:false });
+
+canvas.addEventListener('mousedown', (evt)=>{
+  isPanning = true;
+  panStart = canvasPointFromEvent(evt);
+  panStartView = { cx:view.cx, cy:view.cy };
+  canvas.style.cursor = 'grabbing';
+});
+window.addEventListener('mousemove', (evt)=>{
+  if(!isPanning) return;
+  const [mx,my] = canvasPointFromEvent(evt);
+  view.cx = panStartView.cx - (mx - panStart[0])/view.scale;
+  view.cy = panStartView.cy + (my - panStart[1])/view.scale;
+  paintScatter();
+});
+window.addEventListener('mouseup', ()=>{
+  isPanning = false;
+  canvas.style.cursor = 'grab';
+});
+canvas.addEventListener('dblclick', ()=>{ fitView(); paintScatter(); });
+canvas.style.cursor = 'grab';
+canvas.style.touchAction = 'none';
+
+function tick(){
+  trainStep();
+  drawScatter();
+}
+function singleStep(){
+  trainStep();
+  drawScatter();
+}
+
+document.getElementById('buildBtn').onclick = buildVocab;
+document.getElementById('resetBtn').onclick = resetWeights;
+document.getElementById('fitViewBtn').onclick = ()=>{ fitView(); paintScatter(); };
+document.getElementById('stepBtn').onclick = ()=>{ singleStep(); };
+document.getElementById('sampleSelect').onchange = (e)=>{
+  if(e.target.value!==''){
+    document.getElementById('inputText').value = SAMPLES[parseInt(e.target.value)];
+    buildVocab();
+  }
+};
+document.getElementById('playBtn').onclick = ()=>{
+  playing = !playing;
+  document.getElementById('playBtn').textContent = playing ? '❚❚ Pause' : '▶ Play';
+  if(playing){
+    speedMs = parseInt(document.getElementById('speed').value);
+    timer = setInterval(tick, speedMs);
+  } else {
+    clearInterval(timer);
+  }
+  updateStats();
+};
+['windowSize','lr','speed','batchSize'].forEach(id=>{
+  document.getElementById(id).onchange = ()=>{
+    windowSize = parseInt(document.getElementById('windowSize').value);
+    lr = parseFloat(document.getElementById('lr').value);
+    speedMs = parseInt(document.getElementById('speed').value);
+    batchSizeSetting = document.getElementById('batchSize').value;
+    if(playing){ clearInterval(timer); timer = setInterval(tick, speedMs); }
+  };
+});
+
+buildVocab();
+drawLossChart();
+</script>
+</body>
+</html>
