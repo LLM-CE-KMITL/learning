@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -145,7 +144,7 @@
   .heatmap{display:flex; flex-direction:column; gap:2px;}
   .heatmap.narrow{max-width:46px; margin:0 auto;}
   .heatrow{display:flex; gap:2px;}
-  .heatcell{flex:1; aspect-ratio:1/1; border-radius:1px; min-width:6px;}
+  .heatcell{flex:1; aspect-ratio:1/1; border-radius:1px; min-width:6px; transition:background-color 0.15s ease;}
   .heatmap.narrow .heatcell{min-width:0;}
 
   /* ---- inference panel ---- */
@@ -173,7 +172,7 @@
 <header>
   <div>
     <h1>SEQ<span>2</span>SEQ POLYLINE LAB</h1>
-    <p>A tiny vanilla encoder–decoder RNN, trained live in your browser on hand-drawn polylines — with a self-attention decoder trained alongside a plain one, sharing the same encoder. Every point is a 3D vector [x, y, flag], where flag marks draw / break (new stroke) / stop (end of line), so the network learns not just where to draw but when to lift the pen or stop.</p>
+    <p>A tiny vanilla encoder–decoder RNN, trained live in your browser as a proper seq2seq model: the encoder reads a whole input sequence, and both a plain decoder and a self-attention decoder (sharing the same encoder) learn to regenerate it as a sequence of absolute [x, y] points via teacher forcing - the attention decoder's query evolves at every output step, so it can attend to different input positions as it generates.</p>
   </div>
 </header>
 
@@ -190,8 +189,15 @@
         <button class="primary mini" id="addExampleBtn">+ Add Example</button>
         <button class="mini" id="resetExamplesBtn">Reset Defaults</button>
       </div>
+      <div class="controls-row" style="margin-top:6px;">
+        <button class="mini" id="bakeAugBtn" style="flex:1;" title="Turns random on-the-fly augmentation into real, permanent extra samples - so attention has more actual variety to learn from, not just 2 shapes.">⧷ Bake Augmented Copies (count = Train panel's slider)</button>
+      </div>
       <div id="examplesList"></div>
-      <div class="hint">Click to add points along one polyline. <b style="color:var(--muted);">Double-click</b> starts a new disconnected stroke (pen lift). <kbd>Backspace</kbd> undoes the last point. Each sample trains the curriculum (1)→(2), (1,2)→(3), (1,2,3)→(4) … all the way to the end of the line.</div>
+      <div class="hint">Draw the unfinished shape on INPUT, use <b>⧉ copy →</b> to copy it onto OUTPUT as a starting point, then keep clicking on OUTPUT to finish/extend the shape. <b style="color:var(--muted);">Double-click</b> starts a new disconnected stroke (pen lift), <kbd>Backspace</kbd> undoes the last point.</div>
+      <div class="slider-row" style="margin-top:10px;">
+        <div class="lab"><span>AUGMENTATION PREVIEW</span><span style="color:var(--muted2); font-size:10px;">original vs. one random augmented copy</span></div>
+        <canvas id="augPreviewCanvas" width="280" height="140" style="width:100%; height:140px; background:var(--bg); border:2px solid #3A4750; border-radius:3px;"></canvas>
+      </div>
     </div>
   </div>
 
@@ -248,10 +254,10 @@
       <div class="hint" style="text-align:center; margin-top:6px;"><span style="color:var(--signal);">▬</span> no-attention decoder &nbsp; <span style="color:var(--amber);">▬</span> attention decoder — both trained every epoch, sharing one encoder.</div>
 
       <div class="matrix-grid">
-        <div class="matrix-box"><div class="mtitle"><span>W xh · encoder</span><span class="mono" id="mm-wxhe"></span></div><div class="heatmap narrow" id="hm-wxhe"></div></div>
-        <div class="matrix-box"><div class="mtitle"><span>W hh · encoder</span><span class="mono" id="mm-whhe"></span></div><div class="heatmap" id="hm-whhe"></div></div>
-        <div class="matrix-box"><div class="mtitle"><span>W xh · decoder</span><span class="mono" id="mm-wxhd"></span></div><div class="heatmap narrow" id="hm-wxhd"></div></div>
-        <div class="matrix-box"><div class="mtitle"><span>W hh · decoder</span><span class="mono" id="mm-whhd"></span></div><div class="heatmap" id="hm-whhd"></div></div>
+        <div class="matrix-box"><div class="mtitle"><span>encoder · input gate Wx</span><span class="mono" id="mm-wxhe"></span></div><div class="heatmap narrow" id="hm-wxhe"></div></div>
+        <div class="matrix-box"><div class="mtitle"><span>encoder · input gate Wh</span><span class="mono" id="mm-whhe"></span></div><div class="heatmap" id="hm-whhe"></div></div>
+        <div class="matrix-box"><div class="mtitle"><span>decoder · input gate Wx</span><span class="mono" id="mm-wxhd"></span></div><div class="heatmap narrow" id="hm-wxhd"></div></div>
+        <div class="matrix-box"><div class="mtitle"><span>decoder · input gate Wh</span><span class="mono" id="mm-whhd"></span></div><div class="heatmap" id="hm-whhd"></div></div>
         <div class="matrix-box" style="grid-column:1/3;"><div class="mtitle"><span>W hy · decoder (output projection)</span><span class="mono" id="mm-why"></span></div><div class="heatmap" id="hm-why"></div></div>
       </div>
     </div>
@@ -261,7 +267,7 @@
   <div class="panel">
     <div class="panel-head">
       <span class="tag">03 · Inference</span>
-      <h2>Draw → Continue the Line</h2>
+      <h2>Encode → Decode the Sequence</h2>
     </div>
     <div class="panel-body">
       <div class="io-row" style="justify-content:center; margin-bottom:14px;">
@@ -300,7 +306,7 @@
         <div class="context-bars" id="attnStrip"></div>
       </div>
 
-      <div class="hint" style="text-align:center;">Click to place points, double-click for a new stroke, <kbd>Backspace</kbd> to undo. Predictions include a stop flag - generation ends early if the model signals "stop" instead of always running the full step count.</div>
+      <div class="hint" style="text-align:center;">Click to place points, double-click for a new stroke, <kbd>Backspace</kbd> to undo. The input is encoded once, then each decoder generates a brand-new drawing of the same fixed length - the output panels show only what the model generated, not your input.</div>
     </div>
   </div>
 
@@ -356,24 +362,23 @@ function chaikin(points, iterations){
   return pts;
 }
 
-// 3 default samples: the letter "S" drawn in 3 different styles (upright,
-// wide/slanted, compact), each traced as a zig-zag of corner points then
-// smoothed with Chaikin subdivision into a dense, natural-looking curve.
-// Each is just ONE polyline - training generates the curriculum
-// (points 1..k) -> point (k+1) for every k along the stroke automatically.
+// 4 default samples, each an {input, output} pair for shape completion:
+// input is an unfinished polyline, output is the same shape finished. A
+// "copy input -> output" button lets you draw the input, copy it as a
+// starting point, then keep drawing further points on the output to
+// complete/extend it yourself.
+// single default sample, specified exactly as absolute (x,y) input/output points.
 function defaultExamples(){
-  const styles = [
-    // upright, regular S
-    [ {x:128,y:52}, {x:75,y:44}, {x:68,y:75}, {x:126,y:100}, {x:132,y:132}, {x:75,y:156}, {x:70,y:148} ],
-    // wide, slanted / italic S
-    [ {x:140,y:48}, {x:78,y:40}, {x:64,y:72}, {x:132,y:100}, {x:146,y:130}, {x:80,y:160}, {x:66,y:150} ],
-    // compact, narrower S
-    [ {x:114,y:58}, {x:82,y:52}, {x:78,y:76}, {x:112,y:100}, {x:116,y:124}, {x:82,y:148}, {x:78,y:142} ],
+  const raw = [
+    { input: [[49,147],[158,50]],
+      output:[[55,150],[112,30],[157,148],[34,67],[169,61],[58,165]] },
+    { input: [[34,89],[158,95]],
+      output:[[26,98],[60,54],[89,146],[143,38],[178,118]] },
   ];
-  return styles.map(corners=>{
-    const smooth = chaikin(corners, 2); // dense, smooth "handwritten" stroke
-    return { points: smooth.map(p=>({x:p.x, y:p.y, brk:false})) };
-  });
+  return raw.map(ex=>({
+    input:  ex.input.map(([x,y])=>({x,y,brk:false})),
+    output: ex.output.map(([x,y])=>({x,y,brk:false}))
+  }));
 }
 
 function resample(points, L){
@@ -382,6 +387,9 @@ function resample(points, L){
   }
   if(points.length===1){
     return Array.from({length:L}, ()=>({x:points[0].x,y:points[0].y}));
+  }
+  if(points.length===L){
+    return points.map(p=>({x:p.x,y:p.y})); // already the right length - no interpolation needed/wanted
   }
   const segLen=[]; let total=0;
   for(let i=0;i<points.length-1;i++){
@@ -425,59 +433,38 @@ function applyTransform(points, t){
 function normalizePts(pts){ return pts.map(p=>[ (p.x/LOGICAL)*2-1, (p.y/LOGICAL)*2-1 ]); }
 function denormalizePt(v){ return { x:(v[0]+1)/2*LOGICAL, y:(v[1]+1)/2*LOGICAL }; }
 
-// ---- 3D point vectors: [x, y, flag] ----
-// flag categories: 0 = draw (continues the current stroke)
-//                  1 = break (this point starts a new, disconnected stroke - pen lift)
-//                  2 = stop  (this is the final point of the whole polyline)
-// normalized to flag-1 so it sits in -1..1, the same range as x and y.
-function flagNorm(category){ return category - 1; }
-// classifies a continuous predicted flag value back into a category.
-// Thresholds are asymmetric (not just nearest-of-3): "stop" only wins when
-// the prediction is fairly confidently near +1, since it's the rarest class
-// (one stop point per whole sample) and false triggers cut generation short.
-function flagFromNorm(v){
-  if(v >= 0.55) return 2;   // stop
-  if(v >= -0.25) return 1;  // break
-  return 0;                 // draw
+// builds the SEQ_LEN encoder input vectors (plain 2D [x,y]) for a raw prefix
+// of {x,y} points, resampled to a fixed length.
+function buildInputVec2(rawPts){
+  const resampledXY = resample(rawPts, SEQ_LEN);
+  return resampledXY.map(p=> [ (p.x/LOGICAL)*2-1, (p.y/LOGICAL)*2-1 ]);
 }
-
-// builds the SEQ_LEN encoder input vectors for a raw prefix of {x,y,brk} points.
-// resample() only ever lands exactly on the prefix's first/last raw point
-// (everything in between is a synthetic interpolated point), so only the
-// first and last of the L resampled steps can carry a real flag; interior
-// steps are neutral "draw" points.
-function buildInputVec3(prefixRawPts){
-  const resampledXY = resample(prefixRawPts, SEQ_LEN);
-  const flags = new Array(SEQ_LEN).fill(0);
-  flags[0] = prefixRawPts[0].brk ? 1 : 0;
-  flags[SEQ_LEN-1] = prefixRawPts[prefixRawPts.length-1].brk ? 1 : 0;
-  return resampledXY.map((p,i)=> [ (p.x/LOGICAL)*2-1, (p.y/LOGICAL)*2-1, flagNorm(flags[i]) ]);
-}
-// builds the 3D target vector for a single next point being predicted
-function buildTargetVec3(pt, isStop, isBreak){
-  const category = isStop ? 2 : (isBreak ? 1 : 0);
-  return [ (pt.x/LOGICAL)*2-1, (pt.y/LOGICAL)*2-1, flagNorm(category) ];
-}
-// inverse of buildTargetVec3/predicted output: recovers {x, y, flag(0/1/2)}
-function denormalizePt3(v){
-  return { x:(v[0]+1)/2*LOGICAL, y:(v[1]+1)/2*LOGICAL, flag: flagFromNorm(v[2]) };
+// builds the decoder TARGET sequence as plain absolute normalized [x,y] per step
+function buildTargetSeq(resampledOut){
+  return resampledOut.map(p=> [ (p.x/LOGICAL)*2-1, (p.y/LOGICAL)*2-1 ]);
 }
 
 /* ============================================================
    1. TINY LINEAR ALGEBRA (generic recursive helpers)
    ============================================================ */
+function isContainer(x){ return x!==null && typeof x==='object'; }
 function zerosLike(x){
   if(Array.isArray(x)) return x.map(zerosLike);
+  if(isContainer(x)){ const o={}; for(const k in x) o[k]=zerosLike(x[k]); return o; }
   return 0;
 }
-function addTo(t,d){ // t += d, recursively, in place
-  for(let i=0;i<t.length;i++){
-    if(Array.isArray(t[i])) addTo(t[i], d[i]); else t[i]+=d[i];
+function addTo(t,d){ // t += d, recursively, in place (arrays AND plain objects)
+  if(Array.isArray(t)){
+    for(let i=0;i<t.length;i++){ if(isContainer(t[i])) addTo(t[i], d[i]); else t[i]+=d[i]; }
+  } else if(isContainer(t)){
+    for(const k in t){ if(isContainer(t[k])) addTo(t[k], d[k]); else t[k]+=d[k]; }
   }
 }
 function scaleInPlace(t,s){
-  for(let i=0;i<t.length;i++){
-    if(Array.isArray(t[i])) scaleInPlace(t[i], s); else t[i]*=s;
+  if(Array.isArray(t)){
+    for(let i=0;i<t.length;i++){ if(isContainer(t[i])) scaleInPlace(t[i], s); else t[i]*=s; }
+  } else if(isContainer(t)){
+    for(const k in t){ if(isContainer(t[k])) scaleInPlace(t[k], s); else t[k]*=s; }
   }
 }
 function randMat(n,m,scale){
@@ -494,9 +481,8 @@ function matTVec(M,v){ // M^T @ v, M is n x m -> result length m
 function outer(a,b){ return a.map(ai=> b.map(bj=> ai*bj)); }
 function vecAdd(a,b){ return a.map((x,i)=>x+b[i]); }
 function tanhVec(v){ return v.map(Math.tanh); }
-
 /* ============================================================
-   2. MODEL STATE
+   2. MODEL STATE - vanilla tanh RNN cells (encoder + both decoders)
    ============================================================ */
 const SEQ_LEN = 6;
 let H = 10;
@@ -506,14 +492,15 @@ function initModel(hidden){
   H = hidden;
   const s = 0.5;
   return {
-    Wxh_e: randMat(H,3,s), Whh_e: randMat(H,H,s/Math.sqrt(H)), bh_e: randVec(H,0.1),
+    Wxh_e: randMat(H,2,s), Whh_e: randMat(H,H,s/Math.sqrt(H)), bh_e: randVec(H,0.1),
     // plain decoder (no attention) - starts from encoder's final hidden state only
-    Wxh_d: randMat(H,3,s), Whh_d: randMat(H,H,s/Math.sqrt(H)), bh_d: randVec(H,0.1),
-    Why_d: randMat(3,H,s), by_d: randVec(3,0.1),
-    // attention decoder - starts from zero hidden state, pulls context from ALL
-    // encoder hidden states at every step via dot-product attention
-    Wxh_d2: randMat(H,3,s), Wch_d2: randMat(H,H,s/Math.sqrt(H)), Whh_d2: randMat(H,H,s/Math.sqrt(H)), bh_d2: randVec(H,0.1),
-    Why_d2: randMat(3,H,s), by_d2: randVec(3,0.1)
+    Wxh_d: randMat(H,2,s), Whh_d: randMat(H,H,s/Math.sqrt(H)), bh_d: randVec(H,0.1),
+    Why_d: randMat(2,H,s), by_d: randVec(2,0.1),
+    // attention decoder - also starts from the encoder's final hidden state,
+    // but additionally pulls in a content-based attention context computed
+    // over ALL encoder hidden states
+    Wxh_d2: randMat(H,2,s), Wch_d2: randMat(H,H,s/Math.sqrt(H)), Whh_d2: randMat(H,H,s/Math.sqrt(H)), bh_d2: randVec(H,0.1),
+    Why_d2: randMat(2,H,s), by_d2: randVec(2,0.1)
   };
 }
 function softmax(arr){
@@ -524,96 +511,119 @@ function softmax(arr){
 }
 function dot(a,b){ return a.reduce((s,v,i)=> s+v*b[i], 0); }
 
-// forward pass for one (prefix -> next point) training pair.
-// inputSeq: SEQ_LEN resampled+normalized points covering the prefix drawn so far.
-// targetPt: a single normalized 2D point - the next point to predict.
-function forwardTrain(m, inputSeq, targetPt){
+// forward pass for one seq2seq training pair: encoder reads the whole input
+// sequence, BOTH decoders generate the whole SEQ_LEN-step output sequence
+// with teacher forcing (each step's input is the PREVIOUS ground-truth
+// target, not the previous prediction).
+function forwardTrain(m, inputSeq, targetSeq){
   const he=[new Array(H).fill(0)];
   for(let t=0;t<SEQ_LEN;t++){
     const z = vecAdd(vecAdd(matVec(m.Wxh_e, inputSeq[t]), matVec(m.Whh_e, he[t])), m.bh_e);
     he.push(tanhVec(z));
   }
   const context = he[SEQ_LEN];
-  const decIn0 = [0,0,0];
+  const attnScale = 1/Math.sqrt(H); // scaled dot-product attention: keeps scores from
+                                     // saturating softmax as H grows, so gradients keep flowing
+  const decIn = [ [0,0], ...targetSeq.slice(0,SEQ_LEN-1) ]; // teacher forcing, same for both decoders
 
-  // ---- plain decoder: single step from the encoder's final hidden state ----
-  const zP = vecAdd(vecAdd(matVec(m.Wxh_d, decIn0), matVec(m.Whh_d, context)), m.bh_d);
-  const hP = tanhVec(zP);
-  const outP = vecAdd(matVec(m.Why_d, hP), m.by_d);
-  const loss = (outP[0]-targetPt[0])**2 + (outP[1]-targetPt[1])**2 + (outP[2]-targetPt[2])**2;
+  // ---- plain decoder: standard multi-step RNN decode from the encoder's
+  // final hidden state, no attention ----
+  const hd=[context];
+  const outs=[];
+  for(let t=0;t<SEQ_LEN;t++){
+    const z = vecAdd(vecAdd(matVec(m.Wxh_d, decIn[t]), matVec(m.Whh_d, hd[t])), m.bh_d);
+    hd.push(tanhVec(z));
+    outs.push( vecAdd(matVec(m.Why_d, hd[t+1]), m.by_d) );
+  }
+  let loss=0;
+  for(let t=0;t<SEQ_LEN;t++){ loss += (outs[t][0]-targetSeq[t][0])**2 + (outs[t][1]-targetSeq[t][1])**2; }
 
-  // ---- attention decoder: single step, attends over ALL encoder hidden
-  // states he[1..L] using the encoder's OWN final state as the query. (Using
-  // a fixed zero vector as the query, as an earlier version did, made every
-  // dot(query, he[i]) equal to 0 - softmax of all-zeros is uniform, so the
-  // attention weights never depended on the input at all. Using `context`
-  // makes the query data-dependent, so attention can actually learn which
-  // encoder steps matter for this input.) ----
-  const attnQuery = context;
-  const scores=[]; for(let i=0;i<SEQ_LEN;i++) scores.push(dot(attnQuery, he[i+1]));
-  const alpha = softmax(scores);
-  const context2 = new Array(H).fill(0);
-  for(let i=0;i<SEQ_LEN;i++) for(let k=0;k<H;k++) context2[k] += alpha[i]*he[i+1][k];
-  const z2 = vecAdd(vecAdd(vecAdd(matVec(m.Wxh_d2, decIn0), matVec(m.Wch_d2, context2)), matVec(m.Whh_d2, attnQuery)), m.bh_d2);
-  const h2 = tanhVec(z2);
-  const out2 = vecAdd(matVec(m.Why_d2, h2), m.by_d2);
-  const loss2 = (out2[0]-targetPt[0])**2 + (out2[1]-targetPt[1])**2 + (out2[2]-targetPt[2])**2;
+  // ---- attention decoder: multi-step, starting from the same context, but
+  // the QUERY at each step is the decoder's OWN evolving hidden state
+  // hd2[t] - so attention can genuinely look at different encoder positions
+  // at each of the SEQ_LEN output steps (true seq2seq attention), not just
+  // once per whole sequence. ----
+  const hd2=[context];
+  const outs2=[]; const alphas=[]; const contexts2=[];
+  for(let t=0;t<SEQ_LEN;t++){
+    const query = hd2[t];
+    const scores=[]; for(let i=0;i<SEQ_LEN;i++) scores.push(dot(query, he[i+1]) * attnScale);
+    const alpha = softmax(scores);
+    const context2 = new Array(H).fill(0);
+    for(let i=0;i<SEQ_LEN;i++) for(let k=0;k<H;k++) context2[k] += alpha[i]*he[i+1][k];
+    alphas.push(alpha); contexts2.push(context2);
+    const z2 = vecAdd(vecAdd(vecAdd(matVec(m.Wxh_d2, decIn[t]), matVec(m.Wch_d2, context2)), matVec(m.Whh_d2, hd2[t])), m.bh_d2);
+    hd2.push(tanhVec(z2));
+    outs2.push( vecAdd(matVec(m.Why_d2, hd2[t+1]), m.by_d2) );
+  }
+  let loss2=0;
+  for(let t=0;t<SEQ_LEN;t++){ loss2 += (outs2[t][0]-targetSeq[t][0])**2 + (outs2[t][1]-targetSeq[t][1])**2; }
 
-  return {he, context, decIn0, hP, outP, attnQuery, alpha, context2, h2, out2, inputSeq, targetPt, loss, loss2};
+  return {he, context, decIn, hd, outs, hd2, outs2, alphas, contexts2, attnScale, inputSeq, targetSeq, loss, loss2};
 }
 
 function backward(m, cache, grads){
-  const {he, context, decIn0, hP, outP, attnQuery, alpha, context2, h2, out2, inputSeq, targetPt} = cache;
+  const {he, context, decIn, hd, outs, hd2, outs2, alphas, contexts2, attnScale, inputSeq, targetSeq} = cache;
 
   // dhe_contrib[i] (i=1..L) collects ALL gradient flowing into encoder hidden
   // state he[i] from both decoder branches, before we run the encoder's own
   // recurrent backward pass.
   const dhe_contrib = Array.from({length:SEQ_LEN+1}, ()=> new Array(H).fill(0));
 
-  // ---- plain decoder backward (single step) ----
-  const dOutP = [ 2*(outP[0]-targetPt[0]), 2*(outP[1]-targetPt[1]), 2*(outP[2]-targetPt[2]) ];
-  addTo(grads.Why_d, outer(dOutP, hP));
-  addTo(grads.by_d, dOutP);
-  const dhP = matTVec(m.Why_d, dOutP);
-  const dzP = dhP.map((v,i)=> v*(1-hP[i]*hP[i]));
-  addTo(grads.Wxh_d, outer(dzP, decIn0));
-  addTo(grads.Whh_d, outer(dzP, context));
-  addTo(grads.bh_d, dzP);
-  addTo(dhe_contrib[SEQ_LEN], matTVec(m.Whh_d, dzP)); // grad into encoder's final hidden state
-
-  // ---- attention decoder backward (single step) ----
-  const dOut2 = [ 2*(out2[0]-targetPt[0]), 2*(out2[1]-targetPt[1]), 2*(out2[2]-targetPt[2]) ];
-  addTo(grads.Why_d2, outer(dOut2, h2));
-  addTo(grads.by_d2, dOut2);
-  const dh2 = matTVec(m.Why_d2, dOut2);
-  const dz2 = dh2.map((v,i)=> v*(1-h2[i]*h2[i]));
-  addTo(grads.Wxh_d2, outer(dz2, decIn0));
-  addTo(grads.Wch_d2, outer(dz2, context2));
-  addTo(grads.Whh_d2, outer(dz2, attnQuery));
-  addTo(grads.bh_d2, dz2);
-
-  // attnQuery IS `context` (= he[SEQ_LEN]), so every gradient path back to it
-  // (via the Whh_d2 recurrence term AND via being the attention query) has
-  // to land in the SAME dhe_contrib[SEQ_LEN] slot as the plain decoder's.
-  let dQuery = matTVec(m.Whh_d2, dz2); // path 1: query used in Whh_d2 @ query
-
-  const dContext2 = matTVec(m.Wch_d2, dz2); // grad wrt attention-weighted context2 vector
-  const dAlpha = []; for(let i=0;i<SEQ_LEN;i++) dAlpha.push( dot(dContext2, he[i+1]) );
-  for(let i=0;i<SEQ_LEN;i++){
-    const add=new Array(H); for(let k=0;k<H;k++) add[k]=alpha[i]*dContext2[k];
-    addTo(dhe_contrib[i+1], add); // direct term: context2 = sum alpha_i * he[i]
+  // ---- plain decoder backward (standard multi-step BPTT) ----
+  let dhNext = new Array(H).fill(0);
+  for(let t=SEQ_LEN-1;t>=0;t--){
+    const dOut = [ 2*(outs[t][0]-targetSeq[t][0]), 2*(outs[t][1]-targetSeq[t][1]) ];
+    addTo(grads.Why_d, outer(dOut, hd[t+1]));
+    addTo(grads.by_d, dOut);
+    let dh = vecAdd(matTVec(m.Why_d, dOut), dhNext);
+    const hAct = hd[t+1];
+    const dz = dh.map((v,i)=> v*(1-hAct[i]*hAct[i]));
+    addTo(grads.Wxh_d, outer(dz, decIn[t]));
+    addTo(grads.Whh_d, outer(dz, hd[t]));
+    addTo(grads.bh_d, dz);
+    dhNext = matTVec(m.Whh_d, dz);
   }
-  const sumTerm = alpha.reduce((s,a,i)=> s + a*dAlpha[i], 0);
-  const dScores = alpha.map((a,i)=> a*(dAlpha[i]-sumTerm));
-  for(let i=0;i<SEQ_LEN;i++){
-    // scores_i = query . he[i] -> he[i] gets dScores_i * query ...
-    const add=new Array(H); for(let k=0;k<H;k++) add[k]=dScores[i]*attnQuery[k];
-    addTo(dhe_contrib[i+1], add);
-    // ... and query itself gets dScores_i * he[i] (path 2, the actual
-    // content-based-attention gradient signal that was missing before)
-    for(let k=0;k<H;k++) dQuery[k] += dScores[i]*he[i+1][k];
+  addTo(dhe_contrib[SEQ_LEN], dhNext); // grad into encoder's final hidden state (shared context)
+
+  // ---- attention decoder backward (multi-step, query = hd2[t] evolves) ----
+  let dh2Next = new Array(H).fill(0);
+  for(let t=SEQ_LEN-1;t>=0;t--){
+    const dOut2 = [ 2*(outs2[t][0]-targetSeq[t][0]), 2*(outs2[t][1]-targetSeq[t][1]) ];
+    addTo(grads.Why_d2, outer(dOut2, hd2[t+1]));
+    addTo(grads.by_d2, dOut2);
+    const dhTotal = vecAdd(matTVec(m.Why_d2, dOut2), dh2Next);
+    const hAct2 = hd2[t+1];
+    const dz2 = dhTotal.map((v,i)=> v*(1-hAct2[i]*hAct2[i]));
+    addTo(grads.Wxh_d2, outer(dz2, decIn[t]));
+    addTo(grads.Wch_d2, outer(dz2, contexts2[t]));
+    addTo(grads.Whh_d2, outer(dz2, hd2[t]));
+    addTo(grads.bh_d2, dz2);
+
+    // path A: recurrence hd2[t] -> hd2[t+1]
+    const dh2_fromRecurrence = matTVec(m.Whh_d2, dz2);
+
+    // path B: hd2[t] was ALSO the attention query at this same step
+    const alpha = alphas[t];
+    const dContext2 = matTVec(m.Wch_d2, dz2);
+    const dAlpha = []; for(let i=0;i<SEQ_LEN;i++) dAlpha.push( dot(dContext2, he[i+1]) );
+    for(let i=0;i<SEQ_LEN;i++){
+      const add=new Array(H); for(let k=0;k<H;k++) add[k]=alpha[i]*dContext2[k];
+      addTo(dhe_contrib[i+1], add); // direct term: context2 = sum alpha_i * he[i]
+    }
+    const sumTerm = alpha.reduce((s,a,i)=> s + a*dAlpha[i], 0);
+    const dScores = alpha.map((a,i)=> a*(dAlpha[i]-sumTerm));
+    const dRawScores = dScores.map(v=> v*attnScale);
+    const dh2_fromAttention = new Array(H).fill(0);
+    for(let i=0;i<SEQ_LEN;i++){
+      const add=new Array(H); for(let k=0;k<H;k++) add[k]=dRawScores[i]*hd2[t][k];
+      addTo(dhe_contrib[i+1], add); // scores_i = query.he[i] -> he[i] gets dRawScores_i * query
+      for(let k=0;k<H;k++) dh2_fromAttention[k] += dRawScores[i]*he[i+1][k]; // query gets dRawScores_i * he[i]
+    }
+
+    dh2Next = vecAdd(dh2_fromRecurrence, dh2_fromAttention);
   }
-  addTo(dhe_contrib[SEQ_LEN], dQuery);
+  addTo(dhe_contrib[SEQ_LEN], dh2Next); // grad into encoder's final hidden state (shared context, hd2[0])
 
   // ---- shared encoder backward, combining both branches' contributions ----
   let dhRec = new Array(H).fill(0);
@@ -630,11 +640,21 @@ function backward(m, cache, grads){
 
 function gradGlobalNorm(grads){
   let s=0;
-  const rec=(x)=>{ if(Array.isArray(x)) x.forEach(rec); else s+=x*x; };
+  const rec=(x)=>{
+    if(Array.isArray(x)){ x.forEach(rec); return; }
+    if(isContainer(x)){ for(const k in x) rec(x[k]); return; }
+    s+=x*x;
+  };
   for(const k in grads) rec(grads[k]);
   return Math.sqrt(s);
 }
 const MAX_GRAD_NORM = 5;
+// the attention decoder has an extra weight matrix (Wch_d2) and a softmax in
+// its path, so its gradient signal tends to be weaker/noisier than the plain
+// decoder's; boost its own parameters a bit so it isn't systematically
+// undertrained relative to the plain decoder over the same number of epochs.
+const ATTN_GRAD_BOOST = 1.6;
+const ATTN_KEYS = ['Wxh_d2','Wch_d2','Whh_d2','bh_d2','Why_d2','by_d2'];
 
 function trainEpoch(m, rawExamples, lr, augment, augCount, batchSize){
   const allPairs = shuffleInPlace(buildTrainingPairs(rawExamples, augment, augCount));
@@ -650,11 +670,12 @@ function trainEpoch(m, rawExamples, lr, augment, augCount, batchSize){
       Why_d2: zerosLike(m.Why_d2), by_d2: zerosLike(m.by_d2)
     };
     for(const pr of batch){
-      const cache = forwardTrain(m, pr.inNorm, pr.targetNorm);
+      const cache = forwardTrain(m, pr.inputSeq, pr.targetSeq);
       totalLoss += cache.loss; totalLoss2 += cache.loss2;
       backward(m, cache, grads);
     }
     const n = batch.length || 1;
+    for(const k of ATTN_KEYS) scaleInPlace(grads[k], ATTN_GRAD_BOOST);
     const norm = gradGlobalNorm(grads);
     if(norm > MAX_GRAD_NORM){
       const clip = MAX_GRAD_NORM / norm;
@@ -667,35 +688,50 @@ function trainEpoch(m, rawExamples, lr, augment, augCount, batchSize){
   return {lossPlain: totalLoss/total, lossAttn: totalLoss2/total};
 }
 
-// single-step encode: run the encoder over a resampled prefix, return all
-// hidden states + the final context vector
-function encodeStep(m, prefixRawPts){
-  const inVec = buildInputVec3(prefixRawPts);
+// ---- inference: true seq2seq - encode the input ONCE, then the decoder
+// generates the WHOLE output sequence autoregressively in a single pass
+// (fed its own previous prediction instead of teacher forcing). ----
+function encodeSeq(m, rawPts){
+  const inputSeq = buildInputVec2(rawPts);
   const he=[new Array(H).fill(0)];
   for(let t=0;t<SEQ_LEN;t++){
-    const z = vecAdd(vecAdd(matVec(m.Wxh_e, inVec[t]), matVec(m.Whh_e, he[t])), m.bh_e);
+    const z = vecAdd(vecAdd(matVec(m.Wxh_e, inputSeq[t]), matVec(m.Whh_e, he[t])), m.bh_e);
     he.push(tanhVec(z));
   }
-  return {he, context: he[SEQ_LEN]};
+  return { he, context: he[SEQ_LEN] };
 }
-function predictPlain(m, context){
-  const z = vecAdd(vecAdd(matVec(m.Wxh_d, [0,0,0]), matVec(m.Whh_d, context)), m.bh_d);
-  const h = tanhVec(z);
-  return vecAdd(matVec(m.Why_d, h), m.by_d);
+function decodePlainSeq(m, context){
+  const hd=[context];
+  const outs=[];
+  let prev=[0,0];
+  for(let t=0;t<SEQ_LEN;t++){
+    const z = vecAdd(vecAdd(matVec(m.Wxh_d, prev), matVec(m.Whh_d, hd[t])), m.bh_d);
+    hd.push(tanhVec(z));
+    const o = vecAdd(matVec(m.Why_d, hd[t+1]), m.by_d);
+    outs.push(o); prev = o;
+  }
+  return outs;
 }
-function predictAttention(m, he, context){
-  const attnQuery = context;
-  const scores=[]; for(let i=0;i<SEQ_LEN;i++) scores.push(dot(attnQuery, he[i+1]));
-  const alpha = softmax(scores);
-  const context2 = new Array(H).fill(0);
-  for(let i=0;i<SEQ_LEN;i++) for(let k=0;k<H;k++) context2[k]+=alpha[i]*he[i+1][k];
-  const z2 = vecAdd(vecAdd(vecAdd(matVec(m.Wxh_d2, [0,0,0]), matVec(m.Wch_d2, context2)), matVec(m.Whh_d2, attnQuery)), m.bh_d2);
-  const h2 = tanhVec(z2);
-  const pt = vecAdd(matVec(m.Why_d2, h2), m.by_d2);
-  return {pt, alpha};
+function decodeAttentionSeq(m, he, context){
+  const attnScale = 1/Math.sqrt(H);
+  const hd2=[context];
+  const outs2=[]; const alphas=[];
+  let prev=[0,0];
+  for(let t=0;t<SEQ_LEN;t++){
+    const query = hd2[t];
+    const scores=[]; for(let i=0;i<SEQ_LEN;i++) scores.push(dot(query, he[i+1]) * attnScale);
+    const alpha = softmax(scores);
+    alphas.push(alpha);
+    const context2 = new Array(H).fill(0);
+    for(let i=0;i<SEQ_LEN;i++) for(let k=0;k<H;k++) context2[k]+=alpha[i]*he[i+1][k];
+    const z2 = vecAdd(vecAdd(vecAdd(matVec(m.Wxh_d2, prev), matVec(m.Wch_d2, context2)), matVec(m.Whh_d2, hd2[t])), m.bh_d2);
+    hd2.push(tanhVec(z2));
+    const o = vecAdd(matVec(m.Why_d2, hd2[t+1]), m.by_d2);
+    outs2.push(o); prev = o;
+  }
+  return { outs: outs2, alphas };
 }
-// autoregressive rollout: repeatedly encode the growing prefix and predict
-// one more point, feeding each prediction back in as part of the next prefix
+
 
 /* ============================================================
    3. DRAWING / CANVAS EDITOR UTILITIES
@@ -704,20 +740,10 @@ const COLORS = { input:'#4FD1C5', output:'#F2B953', output2:'#B892FF', grid:'#1B
 
 function formatPts(points){
   if(!points || points.length===0) return '[ ]';
-  return '[' + points.map(p=>{
-    const f = (p.flag!==undefined) ? p.flag : (p.brk ? 1 : 0);
-    return `(${Math.round(p.x)},${Math.round(p.y)},${f})`;
-  }).join(', ') + ']';
+  return '[' + points.map(p=> `(${Math.round(p.x)},${Math.round(p.y)})`).join(', ') + ']';
 }
-// for a COMPLETE sample (not a partial inference draft), the last point is
-// always the "stop" of the whole stroke - tag it with flag=2 for display,
-// matching what buildTrainingPairs actually uses as the training target.
-function withStopFlag(points){
-  if(!points || points.length===0) return points;
-  return points.map((p,i)=> i===points.length-1 ? {...p, flag:2} : p);
-}
-// groups points into strokes at brk boundaries, formatting each group and
-// joining with a separator so pen-lifts are visible in the coordinate list
+// groups points into strokes at brk boundaries (pen lifts), formatting each
+// group and joining with a separator so they're visible in the list
 function formatPtsGrouped(points){
   if(!points || points.length===0) return '[ ]';
   const groups=[[]];
@@ -812,34 +838,62 @@ function renderExamples(){
     const card=document.createElement('div'); card.className='example-card';
     card.innerHTML = `
       <div class="ex-top">
-        <span class="idx">EX ${String(idx+1).padStart(2,'0')} <span class="mono" style="color:var(--muted2); font-size:9.5px;" data-role="ptcount"></span></span>
-        <div style="display:flex; gap:6px;">
-          <button class="mini" data-act="clr">clear</button>
-          <button class="mini danger" data-act="del">✕</button>
+        <span class="idx">EX ${String(idx+1).padStart(2,'0')}</span>
+        <button class="mini danger" data-act="del">✕</button>
+      </div>
+      <div class="ex-canvases">
+        <div class="ex-cell"><label>INPUT</label><canvas class="mini" width="130" height="130" tabindex="0"></canvas><button class="mini" data-act="clr-in">clear</button></div>
+        <div class="arrow-mid">
+          <button class="mini" data-act="copy" title="Copy input polyline to output">⧉ copy →</button>
         </div>
+        <div class="ex-cell"><label>OUTPUT</label><canvas class="mini" width="130" height="130" tabindex="0"></canvas><button class="mini" data-act="clr-out">clear</button></div>
       </div>
-      <div class="ex-canvases" style="justify-content:center;">
-        <canvas class="mini" width="180" height="180" tabindex="0"></canvas>
-      </div>
-      <div class="coords"><span class="in-c coords-pts"></span></div>`;
-    const canvas = card.querySelector('canvas');
-    const coordsPts = card.querySelector('.coords-pts');
-    const ptCountEl = card.querySelector('[data-role="ptcount"]');
-    const scale = 180/LOGICAL;
+      <div class="coords"><span class="k">in </span><span class="in-c coords-in"></span></div>
+      <div class="coords"><span class="k">out</span><span class="out-c coords-out"></span></div>`;
+    const [inCanvas, outCanvas] = card.querySelectorAll('canvas');
+    const coordsIn = card.querySelector('.coords-in'), coordsOut = card.querySelector('.coords-out');
+    const scale = 130/LOGICAL;
     const redraw=()=>{
-      drawPolylineOnCanvas(canvas, ex.points, scale, COLORS.input);
-      coordsPts.textContent = formatPtsGrouped(withStopFlag(ex.points));
-      ptCountEl.textContent = '(' + ex.points.length + ' pts)';
+      drawPolylineOnCanvas(inCanvas, ex.input, scale, COLORS.input);
+      drawPolylineOnCanvas(outCanvas, ex.output, scale, COLORS.output);
+      coordsIn.textContent = formatPtsGrouped(ex.input);
+      coordsOut.textContent = formatPtsGrouped(ex.output);
     };
-    makeEditor(canvas, scale, ()=>ex.points, (p)=>ex.points=p, redraw);
+    card.querySelector('[data-act="copy"]').onclick=()=>{
+      ex.output = ex.input.map(p=>({x:p.x, y:p.y, brk:p.brk})); // copy input as a starting point;
+      redraw();                                                 // keep drawing on OUTPUT to extend/complete it
+    };
+    makeEditor(inCanvas, scale, ()=>ex.input, (p)=>ex.input=p, redraw);
+    makeEditor(outCanvas, scale, ()=>ex.output, (p)=>ex.output=p, redraw);
     card.querySelector('[data-act="del"]').onclick=()=>{ examples.splice(idx,1); renderExamples(); };
-    card.querySelector('[data-act="clr"]').onclick=()=>{ ex.points=[]; redraw(); };
+    card.querySelector('[data-act="clr-in"]').onclick=()=>{ ex.input=[]; redraw(); };
+    card.querySelector('[data-act="clr-out"]').onclick=()=>{ ex.output=[]; redraw(); };
     redraw();
     examplesListEl.appendChild(card);
   });
 }
-document.getElementById('addExampleBtn').onclick=()=>{ examples.push({points:[]}); renderExamples(); };
+document.getElementById('addExampleBtn').onclick=()=>{ examples.push({input:[], output:[]}); renderExamples(); };
 document.getElementById('resetExamplesBtn').onclick=()=>{ examples = defaultExamples(); renderExamples(); };
+document.getElementById('bakeAugBtn').onclick=()=>{
+  const base = examples.filter(ex=> ex.input.length>=2 && ex.output.length>=2);
+  if(base.length===0){ alert('Add or keep at least one input+output sample first.'); return; }
+  const n = Math.max(1, +augCountSlider.value);
+  const baked = [];
+  base.forEach(ex=>{
+    for(let i=0;i<n;i++){
+      const t = randomTransform();
+      const movedIn = applyTransform(ex.input, t);
+      const movedOut = applyTransform(ex.output, t);
+      baked.push({
+        input: movedIn.map((p,idx)=>({x:p.x, y:p.y, brk:ex.input[idx].brk})),
+        output: movedOut.map((p,idx)=>({x:p.x, y:p.y, brk:ex.output[idx].brk}))
+      });
+    }
+  });
+  examples.push(...baked);
+  renderExamples();
+  if(typeof refreshAugPreview==='function') refreshAugPreview();
+};
 renderExamples();
 
 /* ============================================================
@@ -860,16 +914,13 @@ lrVal.textContent = currentLR().toFixed(2);
 hSlider.oninput=()=>{ hVal.textContent = hSlider.value; };
 augCountSlider.oninput=()=>{ augCountVal.textContent = augCountSlider.value; };
 
+
 let epoch=0, lossHistory=[], lossHistory2=[], training=false;
 model = initModel(+hSlider.value);
 
 function validExamples(){
-  return examples.filter(ex=> ex.points.length>=3); // need >=3 points for at least one (1,2)->3 pair
+  return examples.filter(ex=> ex.input.length>=2 && ex.output.length>=2);
 }
-// builds the full curriculum for this epoch: for every example, and every
-// prefix length k=2..N-1, a training pair (points 1..k) -> point (k+1).
-// If augment=true, a fresh random rotate/scale/shift is applied to the whole
-// example once per epoch (same transform for every pair drawn from it).
 function shuffleInPlace(arr){
   for(let i=arr.length-1;i>0;i--){
     const j = Math.floor(Math.random()*(i+1));
@@ -878,42 +929,34 @@ function shuffleInPlace(arr){
   return arr;
 }
 
-// builds the full curriculum for this epoch: for every example, and every
-// prefix length k=2..N-1, a training pair (points 1..k) -> point (k+1).
+// builds one seq2seq training pair: the ENCODER INPUT sequence comes from
+// resampling the sample's `input` polyline, and the DECODER TARGET sequence
+// is the sample's `output` polyline resampled to SEQ_LEN steps - both are
+// plain absolute [x, y] positions (normalized to -1..1).
+function buildSeqPair(inputPts, outputPts){
+  const resampledOut = resample(outputPts, SEQ_LEN);
+  const inputSeq = buildInputVec2(inputPts);
+  const targetSeq = buildTargetSeq(resampledOut);
+  return { inputSeq, targetSeq };
+}
 // If augment=true, `augCount` distinct random rotate/scale/shift copies of
-// each example are generated (each contributing its own full curriculum);
+// each example are generated per epoch (the SAME transform applied to both
+// input and output so they stay geometrically consistent with each other);
 // if augment=false, just the one unaugmented copy is used.
-// how many extra times to repeat the single "stop" pair per copy, since it's
-// naturally very rare (1 out of ~N-2 pairs per sample) and would otherwise
-// contribute a weak, easily-drowned-out gradient signal
-const STOP_OVERSAMPLE = 4;
-
 function buildTrainingPairs(rawExamples, augment, augCount){
   const pairs=[];
   const copies = augment ? Math.max(1, augCount) : 1;
   for(const ex of rawExamples){
     for(let c=0;c<copies;c++){
-      let pts = ex.points;
+      let inputPts = ex.input, outputPts = ex.output;
       if(augment){
         const t = randomTransform();
-        const moved = applyTransform(pts, t);
-        pts = moved.map((p,i)=>({x:p.x, y:p.y, brk:pts[i].brk}));
+        const movedIn = applyTransform(inputPts, t);
+        const movedOut = applyTransform(outputPts, t);
+        inputPts = movedIn.map((p,i)=>({x:p.x, y:p.y, brk:inputPts[i].brk}));
+        outputPts = movedOut.map((p,i)=>({x:p.x, y:p.y, brk:outputPts[i].brk}));
       }
-      const N = pts.length;
-      let stopPair = null;
-      for(let k=2;k<N;k++){
-        const prefix = pts.slice(0,k);
-        const inVec = buildInputVec3(prefix);
-        const isStop = (k === N-1);       // this target is the true final point of the whole stroke
-        const isBreak = pts[k].brk;       // this target starts a new disconnected stroke
-        const targetVec = buildTargetVec3(pts[k], isStop, isBreak);
-        const pair = {inNorm: inVec, targetNorm: targetVec};
-        pairs.push(pair);
-        if(isStop) stopPair = pair;
-      }
-      if(stopPair){
-        for(let r=0;r<STOP_OVERSAMPLE;r++) pairs.push(stopPair);
-      }
+      pairs.push(buildSeqPair(inputPts, outputPts));
     }
   }
   return pairs;
@@ -952,6 +995,35 @@ function renderMatrices(){
   renderHeatmap('hm-whhd', model.Whh_d); document.getElementById('mm-whhd').textContent='μ|w|='+meanAbs(model.Whh_d);
   renderHeatmap('hm-why', model.Why_d); document.getElementById('mm-why').textContent='μ|w|='+meanAbs(model.Why_d);
 }
+
+const augPreviewCanvas = document.getElementById('augPreviewCanvas');
+function refreshAugPreview(){
+  const candidates = validExamples();
+  if(candidates.length===0){
+    const ctx=augPreviewCanvas.getContext('2d');
+    ctx.clearRect(0,0,augPreviewCanvas.width,augPreviewCanvas.height);
+    return;
+  }
+  const ex = candidates[Math.floor(Math.random()*candidates.length)];
+  const t = randomTransform();
+  const augOut = applyTransform(ex.output, t);
+  const scale = augPreviewCanvas.width/(LOGICAL*2+20); // fit "original | augmented" side by side
+  const ctx = augPreviewCanvas.getContext('2d');
+  ctx.clearRect(0,0,augPreviewCanvas.width,augPreviewCanvas.height);
+  const drawAt = (pts, offsetX, color)=>{
+    ctx.strokeStyle=color; ctx.lineWidth=1.5; ctx.lineJoin='round';
+    ctx.beginPath();
+    pts.forEach((p,i)=>{ const x=offsetX+p.x*scale, y=p.y*scale; if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y); });
+    ctx.stroke();
+    pts.forEach(p=>{ ctx.beginPath(); ctx.arc(offsetX+p.x*scale, p.y*scale, 2.2, 0, Math.PI*2); ctx.fillStyle=color; ctx.fill(); });
+  };
+  drawAt(ex.output, 5, '#7C8B93');           // original, muted
+  drawAt(augOut, LOGICAL*scale+15, COLORS.input); // augmented, bright
+  ctx.fillStyle='#7C8B93'; ctx.font='9px JetBrains Mono, monospace';
+  ctx.fillText('original', 6, 12);
+  ctx.fillText('augmented', LOGICAL*scale+16, 12);
+}
+
 function renderLossChart(){
   const ctx=lossCanvas.getContext('2d');
   const W=lossCanvas.width, Hc=lossCanvas.height;
@@ -973,7 +1045,7 @@ function renderLossChart(){
   plot(window1, COLORS.input);
   plot(window2, COLORS.output);
 }
-renderMatrices(); renderLossChart();
+renderMatrices(); renderLossChart(); refreshAugPreview();
 
 function trainingLoop(){
   if(!training) return;
@@ -985,7 +1057,8 @@ function trainingLoop(){
   if(dataset.length>0){
     const lr=currentLR();
     let losses={lossPlain:0,lossAttn:0};
-    for(let i=0;i<8;i++){ losses=trainEpoch(model, dataset, lr, augment, augCount, batchSize); epoch++; }
+    for(let i=0;i<2;i++){ losses=trainEpoch(model, dataset, lr, augment, augCount, batchSize); epoch++; }
+    refreshAugPreview();
     lossHistory.push(losses.lossPlain); lossHistory2.push(losses.lossAttn);
     epochStat.textContent=epoch;
     lossStat.textContent=losses.lossPlain.toFixed(4);
@@ -1035,7 +1108,6 @@ const coordsOutAttn = document.getElementById('coordsOutAttn');
 let inferPoints = [];
 const inferScale = 230/LOGICAL;     // input canvas scale
 const inferScaleOut = 150/LOGICAL;  // output canvases scale (smaller, side-by-side)
-const CONTINUE_STEPS = 8;           // how many points to autoregressively generate
 
 function redrawInfer(activeIdx){
   drawPolylineOnCanvas(inferInCanvas, inferPoints, inferScale, COLORS.input, activeIdx);
@@ -1075,22 +1147,21 @@ async function runInference(){
   inferCancelled = false;
   runInferBtn.disabled=true; runInferBtn.style.display='none';
   stopInferBtn.style.display='inline-block'; stopInferBtn.disabled=false;
-  const nOriginal = inferPoints.length;
 
-  phaseLabel.innerHTML = '<b>CONTINUING</b> (no attention)…'; phaseLabel2.innerHTML = '<b>CONTINUING</b> (with attention)…';
+  phaseLabel.innerHTML = '<b>ENCODING</b>…'; phaseLabel2.innerHTML = '<b>ENCODING</b>…';
   drawPolylineOnCanvas(inferOutCanvas, [], inferScaleOut, COLORS.output);
   drawPolylineOnCanvas(inferOutCanvas2, [], inferScaleOut, COLORS.output2);
   coordsOutNoAttn.textContent=''; coordsOutAttn.textContent='';
   buildContextBars(H); attnStripWrap.style.display='none';
   encodedVectorText.textContent='[ ]';
 
-  // encode the drawn prefix once, just to show the encoded vector readout
-  const {context: firstContext} = encodeStep(model, inferPoints);
+  // true seq2seq: encode the input ONCE (shared by both decoders)
+  const {he, context} = encodeSeq(model, inferPoints);
   const bars = contextBarsEl.children;
   const shownVals = [];
   for(let i=0;i<H;i++){
     if(inferCancelled) break;
-    const v = firstContext[i];
+    const v = context[i];
     bars[i].style.height = (Math.abs(v)*40+2)+'px';
     bars[i].style.background = v>=0 ? COLORS.input : COLORS.output;
     shownVals.push(v.toFixed(3));
@@ -1099,45 +1170,43 @@ async function runInference(){
   }
   await sleep(250);
 
-  // --- continue the line WITHOUT attention, one predicted point at a time ---
-  const colorPlain = (i)=> i<nOriginal ? COLORS.input : COLORS.output;
-  const drawnPlain = inferPoints.map(p=>({x:p.x,y:p.y,brk:p.brk}));
-  for(let s=0;s<CONTINUE_STEPS && !inferCancelled;s++){
-    const {he, context} = encodeStep(model, drawnPlain);
-    const pred = denormalizePt3(predictPlain(model, context));
-    drawnPlain.push({x:pred.x, y:pred.y, brk: pred.flag===1, flag: pred.flag});
-    drawPolylineOnCanvas(inferOutCanvas, drawnPlain, inferScaleOut, colorPlain, drawnPlain.length-1);
-    coordsOutNoAttn.textContent = formatPts(drawnPlain.slice(nOriginal));
-    await sleep(260);
-    if(pred.flag===2){ phaseLabel.innerHTML = 'model signaled <b>stop</b>'; break; } // model predicted "stop"
-  }
-  if(inferCancelled) phaseLabel.innerHTML = 'stopped by user';
-  else if(!phaseLabel.innerHTML.includes('stop')) phaseLabel.innerHTML = 'done — no attention';
+  // decoder generates the WHOLE output sequence in one pass (no re-encoding per step)
+  const outsPlain = decodePlainSeq(model, context);
+  const {outs: outsAttn, alphas} = decodeAttentionSeq(model, he, context);
 
-  // --- continue the line WITH attention, showing attention weights per step ---
+  // --- animate the no-attention output: a brand new drawing, not the input redrawn ---
+  phaseLabel.innerHTML = '<b>DECODING</b> (no attention)…';
+  const drawnPlain = [];
+  for(let t=0;t<SEQ_LEN && !inferCancelled;t++){
+    const pred = denormalizePt(outsPlain[t]);
+    drawnPlain.push({x:pred.x, y:pred.y, brk:false});
+    drawPolylineOnCanvas(inferOutCanvas, drawnPlain, inferScaleOut, COLORS.output, drawnPlain.length-1);
+    coordsOutNoAttn.textContent = formatPts(drawnPlain);
+    await sleep(280);
+  }
+  phaseLabel.innerHTML = inferCancelled ? 'stopped by user' : 'done — no attention';
+
+  // --- animate the with-attention output, showing attention weights per step ---
   if(!inferCancelled) await sleep(200);
   attnStripWrap.style.display='block'; buildAttnStrip(SEQ_LEN);
-  const colorAttn = (i)=> i<nOriginal ? COLORS.input : COLORS.output2;
-  const drawnAttn = inferPoints.map(p=>({x:p.x,y:p.y,brk:p.brk}));
+  const drawnAttn = [];
   const aBars = attnStrip.children;
-  for(let s=0;s<CONTINUE_STEPS && !inferCancelled;s++){
-    const {he, context} = encodeStep(model, drawnAttn);
-    const {pt, alpha} = predictAttention(model, he, context);
+  phaseLabel2.innerHTML = '<b>DECODING</b> (with attention)…';
+  for(let t=0;t<SEQ_LEN && !inferCancelled;t++){
+    const alpha = alphas[t];
     for(let i=0;i<SEQ_LEN;i++){
       aBars[i].style.height = (alpha[i]*44+2)+'px';
       aBars[i].style.background = COLORS.output2;
     }
     await sleep(150);
     if(inferCancelled) break;
-    const pred = denormalizePt3(pt);
-    drawnAttn.push({x:pred.x, y:pred.y, brk: pred.flag===1, flag: pred.flag});
-    drawPolylineOnCanvas(inferOutCanvas2, drawnAttn, inferScaleOut, colorAttn, drawnAttn.length-1);
-    coordsOutAttn.textContent = formatPts(drawnAttn.slice(nOriginal));
+    const pred = denormalizePt(outsAttn[t]);
+    drawnAttn.push({x:pred.x, y:pred.y, brk:false});
+    drawPolylineOnCanvas(inferOutCanvas2, drawnAttn, inferScaleOut, COLORS.output2, drawnAttn.length-1);
+    coordsOutAttn.textContent = formatPts(drawnAttn);
     await sleep(150);
-    if(pred.flag===2){ phaseLabel2.innerHTML = 'model signaled <b>stop</b>'; break; }
   }
-  if(inferCancelled) phaseLabel2.innerHTML = 'stopped by user';
-  else if(!phaseLabel2.innerHTML.includes('stop')) phaseLabel2.innerHTML = 'done — with attention';
+  phaseLabel2.innerHTML = inferCancelled ? 'stopped by user' : 'done — with attention';
   runInferBtn.disabled=false; runInferBtn.style.display='block';
   stopInferBtn.style.display='none';
 }
