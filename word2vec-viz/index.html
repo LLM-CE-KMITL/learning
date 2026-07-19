@@ -151,11 +151,12 @@
         <option value="1">Animals: cat &amp; dog (124 words, 19 unique)</option>
         <option value="2">Countries &amp; capitals (118 words, 26 unique)</option>
         <option value="3">Fruit &amp; color (141 words, 27 unique)</option>
+        <option value="4">Emoji &amp; color (24 words, 12 unique)</option>
       </select>
       <label class="small">window size
         <select id="windowSize">
-          <option value="1">1</option>
-          <option value="2" selected>2</option>
+          <option value="1" selected>1</option>
+          <option value="2">2</option>
           <option value="3">3</option>
         </select>
       </label>
@@ -279,7 +280,8 @@ const SAMPLES = [
   "the king loves the queen the queen loves the king the king rules the land the queen rules the land the king is strong the queen is wise the king and the queen rule the land together the king loves the queen and the queen loves the king the people love the king the people love the queen the king protects the people the queen protects the people the king and the queen protect the land the king is strong and the queen is wise and the people love them both the king rules with the queen the queen rules with the king they love the land and the land loves them",
   "the cat sat on the mat the dog sat on the rug the cat chased the dog the dog chased the cat the cat ran to the garden the dog ran to the yard the cat played in the garden the dog played in the yard the cat and the dog slept on the mat the dog and the cat slept on the rug the cat loves the dog the dog loves the cat they played in the garden and the yard the cat sat on the mat and the dog sat on the rug the cat chased the dog in the garden the dog chased the cat in the yard the cat and the dog slept together on the mat and the rug",
   "paris is the capital of france rome is the capital of italy berlin is the capital of germany madrid is the capital of spain paris is a big city rome is a big city berlin is a big city madrid is a big city france is in europe italy is in europe germany is in europe spain is in europe people in paris speak french people in rome speak italian people in berlin speak german people in madrid speak spanish paris and rome are both in europe berlin and madrid are both in europe the capital of france is paris the capital of italy is rome the capital of germany is berlin the capital of spain is madrid",
-  "the apple is red the banana is yellow the grape is purple the lime is green the cherry is red the lemon is yellow the apple is sweet the banana is sweet the grape is sweet the lime is sour the cherry is sweet the lemon is sour the apple grows on a tree the banana grows on a tree the grape grows on a vine the lime grows on a tree the cherry grows on a tree the lemon grows on a tree people eat the apple people eat the banana people eat the grape people eat the lime people eat the cherry people eat the lemon the red apple and the yellow banana are on the table the purple grape and the green lime are in the bowl the red cherry and the yellow lemon are in the basket"
+  "the apple is red the banana is yellow the grape is purple the lime is green the cherry is red the lemon is yellow the apple is sweet the banana is sweet the grape is sweet the lime is sour the cherry is sweet the lemon is sour the apple grows on a tree the banana grows on a tree the grape grows on a vine the lime grows on a tree the cherry grows on a tree the lemon grows on a tree people eat the apple people eat the banana people eat the grape people eat the lime people eat the cherry people eat the lemon the red apple and the yellow banana are on the table the purple grape and the green lime are in the bowl the red cherry and the yellow lemon are in the basket",
+  "my favorite food is 🍟 with 🔥 🐷 . my favorite food is rice with 🔥 moo . my 😋 food is rice with grilled 🐷 ."
 ];
 
 let tokens = [], vocab = [], vocabIndex = {}, Win = [], Wout = [];
