@@ -1,0 +1,1113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Autoregressive Polyline Lab — Transformer Model</title>
+<style>
+  :root{
+    --bg:#0b0e14;
+    --panel:#11151f;
+    --panel2:#161b28;
+    --line:#242c3d;
+    --ink:#e8ecf5;
+    --dim:#8a93a8;
+    --accent:#5ee6c8;
+    --accent2:#ff9d5c;
+    --danger:#ff6b6b;
+    --mono: 'JetBrains Mono','Consolas',monospace;
+    --sans: 'Inter','Segoe UI',sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);}
+  body{padding:22px 26px 60px;}
+  h1{font-family:var(--mono);font-size:20px;letter-spacing:0.5px;margin:0 0 2px 0;font-weight:600;}
+  h1 .tag{color:var(--accent);}
+  .subtitle{color:var(--dim);font-size:12.5px;margin-bottom:18px;font-family:var(--mono);}
+  .layout{display:grid;grid-template-columns:440px 1fr 300px;gap:16px;align-items:start;}
+  @media (max-width:1180px){.layout{grid-template-columns:1fr;}}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin-bottom:16px;}
+  .panel h2{font-family:var(--mono);font-size:11.5px;text-transform:uppercase;letter-spacing:1.2px;color:var(--accent);margin:0 0 10px 0;font-weight:600;}
+  .panel h2 small{color:var(--dim);text-transform:none;letter-spacing:0;font-weight:400;}
+  .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+  .row + .row{margin-top:8px;}
+  button{
+    background:var(--panel2);color:var(--ink);border:1px solid var(--line);
+    border-radius:6px;padding:7px 11px;font-family:var(--mono);font-size:12px;cursor:pointer;transition:all .12s;
+  }
+  button:hover{border-color:var(--accent);color:var(--accent);}
+  button:active{transform:translateY(1px);}
+  button.primary{background:var(--accent);color:#04241d;border-color:var(--accent);font-weight:700;}
+  button.primary:hover{filter:brightness(1.08);color:#04241d;}
+  button.danger{border-color:#5a2a2a;}
+  button.danger:hover{border-color:var(--danger);color:var(--danger);}
+  button:disabled{opacity:.35;cursor:not-allowed;}
+  button.small{padding:3px 7px;font-size:10.5px;}
+  label{font-size:11.5px;color:var(--dim);font-family:var(--mono);display:block;margin-bottom:3px;}
+  select,input[type=number]{
+    background:var(--panel2);color:var(--ink);border:1px solid var(--line);border-radius:6px;
+    padding:6px 8px;font-family:var(--mono);font-size:12px;width:100%;
+  }
+  input[type=range]{width:100%;accent-color:var(--accent);}
+  .field{flex:1;min-width:90px;}
+  canvas{display:block;border-radius:8px;background:#0d1119;}
+  #inferCanvas{width:400px;max-width:100%;height:400px;display:block;margin:0;}
+  .canvas-wrap{position:relative;border:1px solid var(--line);border-radius:8px;overflow:hidden;}
+  .hint{font-size:11px;color:var(--dim);margin-top:6px;line-height:1.5;}
+  .mono{font-family:var(--mono);}
+  .stat-row{display:flex;justify-content:space-between;font-family:var(--mono);font-size:12px;padding:3px 0;border-bottom:1px dashed var(--line);}
+  .stat-row:last-child{border-bottom:none;}
+  .stat-row span:last-child{color:var(--accent);}
+  .legend{display:flex;gap:14px;font-size:11px;color:var(--dim);font-family:var(--mono);margin-top:6px;flex-wrap:wrap;}
+  .legend span{display:inline-flex;align-items:center;gap:5px;}
+  .dot{width:8px;height:8px;border-radius:50%;display:inline-block;}
+  .matrix-block{margin-bottom:14px;}
+  .matrix-block .cap{font-family:var(--mono);font-size:11px;color:var(--dim);margin-bottom:5px;display:flex;justify-content:space-between;}
+  footer{text-align:center;color:var(--dim);font-family:var(--mono);font-size:11.5px;margin-top:28px;letter-spacing:.3px;}
+  footer .dot-sep{color:var(--line);margin:0 8px;}
+  .progress-outer{width:100%;height:6px;background:var(--panel2);border-radius:3px;overflow:hidden;margin-top:8px;}
+  .progress-inner{height:100%;background:var(--accent);width:0%;transition:width .15s;}
+  .divider{height:1px;background:var(--line);margin:10px 0;}
+
+  /* sample grid */
+  .sample-grid{display:grid;grid-template-columns:1fr;gap:14px;max-height:900px;overflow-y:auto;padding-right:4px;}
+  .sample-card{border:1px solid var(--line);border-radius:8px;padding:8px;background:var(--panel2);}
+  .sample-card .cardhead{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;}
+  .sample-card .cardhead .label{font-family:var(--mono);font-size:10.5px;color:var(--dim);}
+  .sample-card .cardtools{display:flex;gap:4px;}
+  .sample-card canvas{width:100%;height:auto;background:#0d1119;}
+  .vec-text{
+    font-family:var(--mono);font-size:10.5px;color:#8fd8c8;background:#0d1119;border-radius:5px;
+    padding:6px 8px;margin-top:8px;max-height:80px;overflow-y:auto;line-height:1.5;word-break:break-all;
+    border:1px solid var(--line);
+  }
+  .add-card{
+    border:1.5px dashed var(--line);border-radius:8px;display:flex;align-items:center;justify-content:center;
+    min-height:260px;cursor:pointer;color:var(--dim);font-family:var(--mono);font-size:13px;
+  }
+  .add-card:hover{border-color:var(--accent);color:var(--accent);}
+</style>
+</head>
+<body>
+
+<h1><span class="tag">Autoregressive Polyline</span> Lab <span class="tag">—</span> Transformer Model</h1>
+<div class="subtitle">draw a stroke, watch a decoder-only Transformer learn to continue it — one point at a time, one attention weight at a time</div>
+
+<div class="layout">
+
+  <!-- ================= LEFT: DATA ================= -->
+  <div>
+    <div class="panel">
+      <h2>Sample Bank <small id="exCount"></small></h2>
+      <div class="hint" style="margin:0 0 10px 0;">Click to add a point. Double-click starts a new disconnected segment (no connecting line is drawn). Use the ⌫ button to undo the last point. Every edit auto-saves — nothing to name or confirm.</div>
+      <div class="sample-grid" id="sampleGrid"></div>
+    </div>
+  </div>
+
+  <!-- ================= CENTER: TRAIN ================= -->
+  <div>
+    <div class="panel">
+      <h2>Training Configuration</h2>
+      <div class="row">
+        <div class="field">
+          <label>Augment per sample</label>
+          <select id="augCount">
+            <option value="1">1</option>
+            <option value="5" selected>5</option>
+            <option value="10">10</option>
+            <option value="15">15</option>
+            <option value="20">20</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Mini-batch size</label>
+          <select id="batchSize">
+            <option value="1">1</option>
+            <option value="5">5</option>
+            <option value="10" selected>10</option>
+            <option value="20">20</option>
+            <option value="all">all</option>
+          </select>
+        </div>
+      </div>
+      <div class="row" style="margin-top:10px;">
+        <div class="field">
+          <label>Epochs</label>
+          <input type="number" id="epochs" value="120" min="1" max="5000">
+        </div>
+        <div class="field">
+          <label>Learning rate</label>
+          <input type="number" id="lr" value="0.06" min="0.001" max="1" step="0.005">
+        </div>
+        <div class="field">
+          <label>d_model (embed size)</label>
+          <input type="number" id="hidden" value="16" min="4" max="64" step="2">
+        </div>
+        <div class="field">
+          <label>Transformer layers</label>
+          <select id="layers">
+            <option value="1">1</option>
+            <option value="2" selected>2</option>
+            <option value="3">3</option>
+            <option value="4">4</option>
+            <option value="5">5</option>
+            <option value="6">6</option>
+            <option value="7">7</option>
+            <option value="8">8</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Attention heads</label>
+          <select id="heads">
+            <option value="1">1</option>
+            <option value="2" selected>2</option>
+            <option value="4">4</option>
+            <option value="8">8</option>
+          </select>
+        </div>
+      </div>
+      <div class="row" style="margin-top:12px;">
+        <button class="primary" id="btnTrain">&#9654; Start Training</button>
+        <button id="btnStop" disabled>&#9724; Stop</button>
+        <button id="btnReset">&#8635; Reset Weights</button>
+      </div>
+      <div class="progress-outer"><div class="progress-inner" id="progBar"></div></div>
+      <div class="stat-row"><span>Epoch</span><span id="statEpoch">0 / 0</span></div>
+      <div class="stat-row"><span>Samples this run (curriculum steps)</span><span id="statSamples">0</span></div>
+      <div class="stat-row"><span>Loss (xy mse + flag ce)</span><span id="statLoss">-</span></div>
+    </div>
+
+    <div class="panel">
+      <h2>Loss Curve</h2>
+      <div class="canvas-wrap"><canvas id="lossCanvas" width="560" height="140"></canvas></div>
+    </div>
+
+    <div class="panel">
+      <h2>Inference — Draw a Seed, Let the Model Continue</h2>
+      <div class="canvas-wrap" style="width:400px;max-width:100%;">
+        <canvas id="inferCanvas" width="400" height="400"></canvas>
+      </div>
+      <div class="legend">
+        <span><span class="dot" style="background:#7fb4ff"></span>your seed stroke</span>
+        <span><span class="dot" style="background:var(--accent2)"></span>AI-generated continuation</span>
+      </div>
+      <div class="row" style="margin-top:10px;">
+        <button class="primary" id="btnGenerate">&#10148; Generate Continuation</button>
+        <button id="btnClearInfer" class="danger">Clear</button>
+        <div class="field" style="max-width:150px;">
+          <label>Max AI steps</label>
+          <input type="number" id="maxSteps" value="30" min="2" max="120">
+        </div>
+      </div>
+      <div class="hint">Click to lay down a few points of your own line (double-click for a new segment — no connecting line is drawn to it), then hit Generate — the model predicts <span class="mono">(x,y,flag)</span> autoregressively and stops as soon as it outputs <b>flag = 2 (stop)</b>, or when it reaches the max-steps limit below, whichever comes first.</div>
+      <div class="vec-text" id="inferVecText" style="max-height:90px;">vector sequence will appear here</div>
+    </div>
+  </div>
+
+  <!-- ================= RIGHT: MATRICES ================= -->
+  <div>
+    <div class="panel">
+      <h2>Live Weight Matrices</h2>
+      <div class="row" style="margin-bottom:10px;">
+        <div class="field">
+          <label>Viewing layer</label>
+          <select id="matrixLayer"></select>
+        </div>
+      </div>
+      <div class="matrix-block">
+        <div class="cap"><span>W<sub>head</sub> — final &rarr; output (all layers feed this)</span><span id="w2dim" class="mono"></span></div>
+        <canvas id="w2Canvas" width="268" height="110"></canvas>
+      </div>
+      <div class="matrix-block">
+        <div class="cap"><span>W1<sub>ffn</sub> — feed-forward in</span><span id="w1fdim" class="mono"></span></div>
+        <canvas id="w1fCanvas" width="268" height="110"></canvas>
+      </div>
+      <div class="matrix-block">
+        <div class="cap"><span>W2<sub>ffn</sub> — feed-forward out</span><span id="w2fdim" class="mono"></span></div>
+        <canvas id="w2fCanvas" width="268" height="110"></canvas>
+      </div>
+      <div class="divider"></div>
+      <div class="hint" style="margin-top:0;margin-bottom:10px;">Below: causal self-attention weights for the selected layer. These typically move <b>much less</b> than the matrices above — layer norm + softmax make attention less sensitive to small weight changes, so most of the learning shows up in the feed-forward and output weights instead. The Δ figure next to each matrix is the total weight movement since the last redraw, so you can confirm it's updating even when the color barely shifts.</div>
+      <div class="matrix-block">
+        <div class="cap"><span>W<sub>Q</sub> — query</span><span id="wqdim" class="mono"></span></div>
+        <canvas id="wqCanvas" width="268" height="110"></canvas>
+      </div>
+      <div class="matrix-block">
+        <div class="cap"><span>W<sub>K</sub> — key</span><span id="wkdim" class="mono"></span></div>
+        <canvas id="wkCanvas" width="268" height="110"></canvas>
+      </div>
+      <div class="matrix-block">
+        <div class="cap"><span>W<sub>V</sub> — value</span><span id="wvdim" class="mono"></span></div>
+        <canvas id="wvCanvas" width="268" height="110"></canvas>
+      </div>
+      <div class="matrix-block">
+        <div class="cap"><span>W<sub>O</sub> — attention output proj.</span><span id="wodim" class="mono"></span></div>
+        <canvas id="woCanvas" width="268" height="110"></canvas>
+      </div>
+      <div class="hint">Blue = negative weight, amber = positive. Redrawn every epoch. Switch "Viewing layer" to inspect any of the (up to 8) transformer blocks.</div>
+    </div>
+
+    <div class="panel">
+      <h2>Network Spec</h2>
+      <div class="stat-row"><span>Architecture</span><span>decoder-only Transformer</span></div>
+      <div class="stat-row"><span>Attention</span><span>causal, <span id="specHeads">2</span> heads</span></div>
+      <div class="stat-row"><span>d_model</span><span id="specIn">16</span></div>
+      <div class="stat-row"><span>Layers</span><span id="specHid">2</span></div>
+      <div class="stat-row"><span>Output dim</span><span>5 (dx,dy + 3 flag logits)</span></div>
+      <div class="hint">
+        Every point attends back to <b>every earlier point in the same stroke</b> (causal mask — no peeking forward). One forward pass over a whole stroke computes the entire curriculum at once: position 1 predicts point 2, positions 1&ndash;2 predict point 3, and so on. Vectors are shown as <span class="mono">(dx,dy,flag)</span> — the first point of every stroke is <span class="mono">(0,0,flag)</span>, later points are pixel deltas on a 300&times;300 canonical canvas, and flag &isin; {0=draw, 1=break, 2=stop}. The last point of a stroke is always trained as <b>stop</b>.
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<footer>Credit by SAIG Lab <span class="dot-sep">·</span> CE-KMITL <span class="dot-sep">·</span> Powered by Claude</footer>
+
+<script>
+(function(){
+"use strict";
+
+// ============================================================
+const OUT_DIM = 5;          // dx,dy + 3 flag logits
+let N_HEADS = 2;            // attention heads (configurable, must divide d_model)
+const MAX_LEN = 64;         // max sequence length covered by positional encoding
+let D_MODEL = 16;           // embedding / model width (configurable)
+let N_LAYERS = 2;           // transformer blocks (configurable, up to 8)
+
+const CARD_SIZE = 400;      // sample-card canvas pixel size
+const INFER_W = 400, INFER_H = 400;   // square, matches sample-card aspect ratio
+const VEC_SCALE = 300;      // canonical scale for displayed (dx,dy) tuples
+
+// ============================================================
+// MATRIX MATH  (verified against numerical gradient checks)
+// ============================================================
+function zeros(r,c){ const m=new Array(r); for(let i=0;i<r;i++) m[i]=new Array(c).fill(0); return m; }
+function randMat(r,c,s){ const m=new Array(r); for(let i=0;i<r;i++){ const row=new Array(c); for(let j=0;j<c;j++) row[j]=(Math.random()*2-1)*s; m[i]=row; } return m; }
+function matmul(A,B){
+  const r=A.length, k=A[0].length, c=B[0].length;
+  const out = zeros(r,c);
+  for(let i=0;i<r;i++){
+    const Ai=A[i], Oi=out[i];
+    for(let p=0;p<k;p++){
+      const a=Ai[p];
+      if(a===0) continue;
+      const Bp=B[p];
+      for(let j=0;j<c;j++) Oi[j]+=a*Bp[j];
+    }
+  }
+  return out;
+}
+function addBiasRows(A,b){ return A.map(row=>row.map((v,j)=>v+b[j])); }
+function relu(A){ return A.map(row=>row.map(v=>v>0?v:0)); }
+function reluMask(A){ return A.map(row=>row.map(v=>v>0?1:0)); }
+function transpose(A){
+  const r=A.length, c=A[0].length;
+  const out = zeros(c,r);
+  for(let i=0;i<r;i++) for(let j=0;j<c;j++) out[j][i]=A[i][j];
+  return out;
+}
+function addMats(A,B){ return A.map((row,i)=>row.map((v,j)=>v+B[i][j])); }
+function colsum(M){ const c=M[0].length; const out=new Array(c).fill(0); for(const row of M) for(let j=0;j<c;j++) out[j]+=row[j]; return out; }
+function sliceCols(M,start,len){ return M.map(row=>row.slice(start,start+len)); }
+function concatCols(mats){ return mats[0].map((_,i)=> mats.reduce((acc,m)=>acc.concat(m[i]),[])); }
+function setCols(M,start,sub){ for(let i=0;i<M.length;i++) for(let j=0;j<sub[i].length;j++) M[i][start+j]=sub[i][j]; }
+function softmaxRowGeneric(row){
+  const m = Math.max(...row);
+  const ex = row.map(v=>Math.exp(v-m));
+  const s = ex.reduce((a,b)=>a+b,0);
+  return ex.map(v=>v/s);
+}
+function softmax3(row){
+  const m=Math.max(row[0],row[1],row[2]);
+  const e0=Math.exp(row[0]-m),e1=Math.exp(row[1]-m),e2=Math.exp(row[2]-m);
+  const s=e0+e1+e2; return [e0/s,e1/s,e2/s];
+}
+
+// ---- LayerNorm ----
+function layerNormForward(X, gamma, beta, eps){
+  eps = eps||1e-5;
+  const N=X.length, D=X[0].length;
+  const mu=new Array(N), variance=new Array(N), xhat=zeros(N,D), Y=zeros(N,D);
+  for(let i=0;i<N;i++){
+    let m=0; for(let j=0;j<D;j++) m+=X[i][j]; m/=D;
+    let v=0; for(let j=0;j<D;j++) v+=(X[i][j]-m)*(X[i][j]-m); v/=D;
+    mu[i]=m; variance[i]=v;
+    const denom=Math.sqrt(v+eps);
+    for(let j=0;j<D;j++){ const xh=(X[i][j]-m)/denom; xhat[i][j]=xh; Y[i][j]=gamma[j]*xh+beta[j]; }
+  }
+  return {Y, cache:{X,xhat,mu,variance,gamma,eps}};
+}
+function layerNormBackward(dY, cache){
+  const {xhat,variance,gamma,eps} = cache;
+  const N=xhat.length, D=xhat[0].length;
+  const dX=zeros(N,D);
+  const dgamma=new Array(D).fill(0), dbeta=new Array(D).fill(0);
+  for(let j=0;j<D;j++) for(let i=0;i<N;i++){ dgamma[j]+=dY[i][j]*xhat[i][j]; dbeta[j]+=dY[i][j]; }
+  for(let i=0;i<N;i++){
+    const denom=Math.sqrt(variance[i]+eps);
+    const dxhat=new Array(D);
+    for(let j=0;j<D;j++) dxhat[j]=dY[i][j]*gamma[j];
+    let sumD=0, sumDX=0;
+    for(let j=0;j<D;j++){ sumD+=dxhat[j]; sumDX+=dxhat[j]*xhat[i][j]; }
+    for(let j=0;j<D;j++) dX[i][j] = (dxhat[j] - sumD/D - xhat[i][j]*sumDX/D)/denom;
+  }
+  return {dX, dgamma, dbeta};
+}
+
+// ---- Causal multi-head self-attention ----
+function selfAttentionForward(X, Wq,Wk,Wv,Wo, nHeads){
+  const N=X.length, D=X[0].length, headDim=D/nHeads;
+  const Q=matmul(X,Wq), K=matmul(X,Wk), V=matmul(X,Wv);
+  const heads=[];
+  for(let h=0;h<nHeads;h++){
+    const Qh=sliceCols(Q,h*headDim,headDim), Kh=sliceCols(K,h*headDim,headDim), Vh=sliceCols(V,h*headDim,headDim);
+    const scale=1/Math.sqrt(headDim);
+    let scores = matmul(Qh, transpose(Kh)).map(row=>row.map(v=>v*scale));
+    for(let i=0;i<N;i++) for(let j=i+1;j<N;j++) scores[i][j]=-1e9; // causal mask
+    const A = scores.map(row=>softmaxRowGeneric(row));
+    const ctx = matmul(A, Vh);
+    heads.push({Qh,Kh,Vh,A,ctx});
+  }
+  const concat = concatCols(heads.map(h=>h.ctx));
+  const out = matmul(concat, Wo);
+  return {out, cache:{X,heads,concat,Wq,Wk,Wv,Wo,nHeads,headDim,N,D}};
+}
+function selfAttentionBackward(dOut, cache){
+  const {X,heads,concat,Wq,Wk,Wv,Wo,nHeads,headDim,N,D} = cache;
+  const dWo = matmul(transpose(concat), dOut);
+  const dConcat = matmul(dOut, transpose(Wo));
+  const dQ=zeros(N,D), dK=zeros(N,D), dV=zeros(N,D);
+  for(let h=0;h<nHeads;h++){
+    const {Qh,Kh,Vh,A}=heads[h];
+    const dCtx = sliceCols(dConcat, h*headDim, headDim);
+    const dA = matmul(dCtx, transpose(Vh));
+    const dVh = matmul(transpose(A), dCtx);
+    const dScores = zeros(N,N);
+    for(let i=0;i<N;i++){
+      const Ai=A[i], dAi=dA[i];
+      let dot=0; for(let j=0;j<N;j++) dot+=dAi[j]*Ai[j];
+      for(let j=0;j<N;j++) dScores[i][j]=Ai[j]*(dAi[j]-dot);
+    }
+    const scale=1/Math.sqrt(headDim);
+    const dScoresScaled = dScores.map(row=>row.map(v=>v*scale));
+    const dQh = matmul(dScoresScaled, Kh);
+    const dKh = matmul(transpose(dScoresScaled), Qh);
+    setCols(dQ,h*headDim,dQh); setCols(dK,h*headDim,dKh); setCols(dV,h*headDim,dVh);
+  }
+  const dWq=matmul(transpose(X),dQ), dWk=matmul(transpose(X),dK), dWv=matmul(transpose(X),dV);
+  const dX = addMats(addMats(matmul(dQ,transpose(Wq)), matmul(dK,transpose(Wk))), matmul(dV,transpose(Wv)));
+  return {dX,dWq,dWk,dWv,dWo};
+}
+
+// ---- Transformer block (pre-LN: x += Attn(LN(x)); x += FFN(LN(x))) ----
+function layerForward(X, p){
+  const ln1 = layerNormForward(X, p.gamma1, p.beta1);
+  const attn = selfAttentionForward(ln1.Y, p.Wq,p.Wk,p.Wv,p.Wo, p.nHeads);
+  const afterAttn = addMats(X, attn.out);
+  const ln2 = layerNormForward(afterAttn, p.gamma2, p.beta2);
+  const h1pre = addBiasRows(matmul(ln2.Y, p.W1f), p.b1f);
+  const h1 = relu(h1pre);
+  const ffnOut = addBiasRows(matmul(h1, p.W2f), p.b2f);
+  const Y = addMats(afterAttn, ffnOut);
+  return {Y, cache:{ln1,attn,afterAttn,ln2,h1pre,h1,ffnOut}};
+}
+function layerBackward(dY, cache, p){
+  const dW2f = matmul(transpose(cache.h1), dY);
+  const db2f = colsum(dY);
+  const dH1 = matmul(dY, transpose(p.W2f));
+  const mask = reluMask(cache.h1pre);
+  const dH1pre = dH1.map((row,i)=>row.map((v,j)=>v*mask[i][j]));
+  const dW1f = matmul(transpose(cache.ln2.Y), dH1pre);
+  const db1f = colsum(dH1pre);
+  const dLn2Y = matmul(dH1pre, transpose(p.W1f));
+  const ln2back = layerNormBackward(dLn2Y, cache.ln2.cache);
+  const dAfterAttn = addMats(dY, ln2back.dX);
+  const attnBack = selfAttentionBackward(dAfterAttn, cache.attn.cache);
+  const ln1back = layerNormBackward(attnBack.dX, cache.ln1.cache);
+  const dX = addMats(dAfterAttn, ln1back.dX);
+  return {dX, grads:{dWq:attnBack.dWq,dWk:attnBack.dWk,dWv:attnBack.dWv,dWo:attnBack.dWo,
+    dgamma1:ln1back.dgamma, dbeta1:ln1back.dbeta, dgamma2:ln2back.dgamma, dbeta2:ln2back.dbeta,
+    dW1f, db1f, dW2f, db2f}};
+}
+
+// ============================================================
+// DECODER-ONLY TRANSFORMER MODEL
+// ============================================================
+function buildPE(maxLen, D){
+  const PE = zeros(maxLen, D);
+  for(let pos=0; pos<maxLen; pos++){
+    for(let i=0;i<D;i+=2){
+      const div = Math.pow(10000, i/D);
+      PE[pos][i] = Math.sin(pos/div);
+      if(i+1<D) PE[pos][i+1] = Math.cos(pos/div);
+    }
+  }
+  return PE;
+}
+
+let model = null;
+function initModel(dModel, nLayers, nHeads){
+  heatmapMaxAbs = {};
+  lastMatrixSnapshot = {};
+  N_HEADS = nHeads;
+  // d_model must be a multiple of nHeads so heads split evenly
+  D_MODEL = Math.ceil(dModel / N_HEADS) * N_HEADS;
+  N_LAYERS = nLayers;
+  const ffnHidden = D_MODEL*2;
+  model = {
+    D: D_MODEL,
+    Wemb: randMat(3, D_MODEL, 0.5), bemb: new Array(D_MODEL).fill(0),
+    layers: [],
+    gammaF: new Array(D_MODEL).fill(1), betaF: new Array(D_MODEL).fill(0),
+    Whead: randMat(D_MODEL, OUT_DIM, 0.3/Math.sqrt(D_MODEL)), bhead: new Array(OUT_DIM).fill(0),
+    PE: buildPE(MAX_LEN, D_MODEL)
+  };
+  for(let l=0;l<N_LAYERS;l++){
+    model.layers.push({
+      gamma1:new Array(D_MODEL).fill(1), beta1:new Array(D_MODEL).fill(0),
+      gamma2:new Array(D_MODEL).fill(1), beta2:new Array(D_MODEL).fill(0),
+      Wq:randMat(D_MODEL,D_MODEL,0.3/Math.sqrt(D_MODEL)), Wk:randMat(D_MODEL,D_MODEL,0.3/Math.sqrt(D_MODEL)),
+      Wv:randMat(D_MODEL,D_MODEL,0.3/Math.sqrt(D_MODEL)), Wo:randMat(D_MODEL,D_MODEL,0.3/Math.sqrt(D_MODEL)),
+      W1f:randMat(D_MODEL,ffnHidden,0.3/Math.sqrt(D_MODEL)), b1f:new Array(ffnHidden).fill(0),
+      W2f:randMat(ffnHidden,D_MODEL,0.3/Math.sqrt(ffnHidden)), b2f:new Array(D_MODEL).fill(0),
+      nHeads: N_HEADS
+    });
+  }
+  document.getElementById('specIn').textContent = D_MODEL;
+  document.getElementById('specHid').textContent = N_LAYERS;
+  document.getElementById('specHeads').textContent = N_HEADS;
+  document.getElementById('w2dim').textContent = D_MODEL+'×'+OUT_DIM;
+
+  // rebuild the layer selector for the matrix viewer
+  const sel = document.getElementById('matrixLayer');
+  const prevVal = sel.value;
+  sel.innerHTML = '';
+  for(let l=0;l<N_LAYERS;l++){
+    const opt = document.createElement('option');
+    opt.value = l; opt.textContent = 'Layer '+(l+1);
+    sel.appendChild(opt);
+  }
+  sel.value = (prevVal!=='' && parseInt(prevVal,10)<N_LAYERS) ? prevVal : '0';
+}
+
+// forward pass over one full point-sequence, causal masked throughout
+function modelForward(points){
+  const N = points.length;
+  const Xraw = points.map(p=>[p.x,p.y,p.flag/2]);
+  const emb = addBiasRows(matmul(Xraw, model.Wemb), model.bemb);
+  const withPE = emb.map((row,i)=>row.map((v,j)=>v+model.PE[Math.min(i,MAX_LEN-1)][j]));
+  let X = withPE;
+  const layerCaches = [];
+  for(let l=0;l<model.layers.length;l++){
+    const {Y,cache} = layerForward(X, model.layers[l]);
+    layerCaches.push(cache);
+    X = Y;
+  }
+  const lnF = layerNormForward(X, model.gammaF, model.betaF);
+  const O = addBiasRows(matmul(lnF.Y, model.Whead), model.bhead);
+  return {O, cache:{Xraw, layerCaches, lnF}};
+}
+function modelBackward(dO, cache){
+  const dWhead = matmul(transpose(cache.lnF.Y), dO);
+  const dbhead = colsum(dO);
+  const dLnFY = matmul(dO, transpose(model.Whead));
+  const lnFback = layerNormBackward(dLnFY, cache.lnF.cache);
+  let dX = lnFback.dX;
+  const layerGrads = new Array(model.layers.length);
+  for(let l=model.layers.length-1; l>=0; l--){
+    const {dX:dXnew, grads} = layerBackward(dX, cache.layerCaches[l], model.layers[l]);
+    layerGrads[l] = grads;
+    dX = dXnew;
+  }
+  const dWemb = matmul(transpose(cache.Xraw), dX);
+  const dbemb = colsum(dX);
+  return {dWhead, dbhead, dgammaF:lnFback.dgamma, dbetaF:lnFback.dbeta, layerGrads, dWemb, dbemb};
+}
+
+// causal teacher-forced loss over an entire stroke: position i predicts points[i+1]
+// this is exactly the (1)->(2), (1,2)->(3), ... curriculum, computed in ONE forward pass
+function sequenceLossAndGrad(points){
+  const N = points.length;
+  const {O, cache} = modelForward(points);
+  const dO = zeros(N, OUT_DIM);
+  let loss = 0, count = 0;
+  for(let i=0;i<N-1;i++){
+    const target = points[i+1];
+    const dx = O[i][0]-target.x, dy = O[i][1]-target.y;
+    loss += dx*dx+dy*dy;
+    dO[i][0] = 2*dx; dO[i][1] = 2*dy;
+    const probs = softmax3([O[i][2],O[i][3],O[i][4]]);
+    const t = target.flag;
+    loss += -Math.log(Math.max(probs[t],1e-9));
+    for(let c=0;c<3;c++) dO[i][2+c] = probs[c]-(c===t?1:0);
+    count++;
+  }
+  if(count>0){ loss/=count; for(let i=0;i<N;i++) for(let j=0;j<OUT_DIM;j++) dO[i][j]/=count; }
+  const grads = modelBackward(dO, cache);
+  return {loss, grads, count};
+}
+
+function zeroGradsLike(){
+  return {
+    dWemb: zeros(3, model.D), dbemb: new Array(model.D).fill(0),
+    dgammaF: new Array(model.D).fill(0), dbetaF: new Array(model.D).fill(0),
+    dWhead: zeros(model.D,OUT_DIM), dbhead: new Array(OUT_DIM).fill(0),
+    layerGrads: model.layers.map(p=>({
+      dWq:zeros(model.D,model.D), dWk:zeros(model.D,model.D), dWv:zeros(model.D,model.D), dWo:zeros(model.D,model.D),
+      dgamma1:new Array(model.D).fill(0), dbeta1:new Array(model.D).fill(0),
+      dgamma2:new Array(model.D).fill(0), dbeta2:new Array(model.D).fill(0),
+      dW1f:zeros(model.D,p.W1f[0].length), db1f:new Array(p.W1f[0].length).fill(0),
+      dW2f:zeros(p.W1f[0].length,model.D), db2f:new Array(model.D).fill(0)
+    }))
+  };
+}
+function addInto(target, src){ for(let i=0;i<target.length;i++) for(let j=0;j<target[0].length;j++) target[i][j]+=src[i][j]; }
+function addIntoVec(target, src){ for(let i=0;i<target.length;i++) target[i]+=src[i]; }
+function accumulate(acc, grads){
+  addInto(acc.dWemb, grads.dWemb); addIntoVec(acc.dbemb, grads.dbemb);
+  addIntoVec(acc.dgammaF, grads.dgammaF); addIntoVec(acc.dbetaF, grads.dbetaF);
+  addInto(acc.dWhead, grads.dWhead); addIntoVec(acc.dbhead, grads.dbhead);
+  for(let l=0;l<acc.layerGrads.length;l++){
+    const a=acc.layerGrads[l], g=grads.layerGrads[l];
+    addInto(a.dWq,g.dWq); addInto(a.dWk,g.dWk); addInto(a.dWv,g.dWv); addInto(a.dWo,g.dWo);
+    addIntoVec(a.dgamma1,g.dgamma1); addIntoVec(a.dbeta1,g.dbeta1);
+    addIntoVec(a.dgamma2,g.dgamma2); addIntoVec(a.dbeta2,g.dbeta2);
+    addInto(a.dW1f,g.dW1f); addIntoVec(a.db1f,g.db1f);
+    addInto(a.dW2f,g.dW2f); addIntoVec(a.db2f,g.db2f);
+  }
+}
+function applyUpdate(acc, lr, n){
+  const s = lr/n;
+  for(let i=0;i<3;i++) for(let j=0;j<model.D;j++) model.Wemb[i][j]-=s*acc.dWemb[i][j];
+  for(let j=0;j<model.D;j++) model.bemb[j]-=s*acc.dbemb[j];
+  for(let j=0;j<model.D;j++){ model.gammaF[j]-=s*acc.dgammaF[j]; model.betaF[j]-=s*acc.dbetaF[j]; }
+  for(let i=0;i<model.D;i++) for(let j=0;j<OUT_DIM;j++) model.Whead[i][j]-=s*acc.dWhead[i][j];
+  for(let j=0;j<OUT_DIM;j++) model.bhead[j]-=s*acc.dbhead[j];
+  for(let l=0;l<model.layers.length;l++){
+    const p=model.layers[l], g=acc.layerGrads[l];
+    const D=model.D, FH=p.W1f[0].length;
+    for(let i=0;i<D;i++) for(let j=0;j<D;j++){ p.Wq[i][j]-=s*g.dWq[i][j]; p.Wk[i][j]-=s*g.dWk[i][j]; p.Wv[i][j]-=s*g.dWv[i][j]; p.Wo[i][j]-=s*g.dWo[i][j]; }
+    for(let j=0;j<D;j++){ p.gamma1[j]-=s*g.dgamma1[j]; p.beta1[j]-=s*g.dbeta1[j]; p.gamma2[j]-=s*g.dgamma2[j]; p.beta2[j]-=s*g.dbeta2[j]; }
+    for(let i=0;i<D;i++) for(let j=0;j<FH;j++) p.W1f[i][j]-=s*g.dW1f[i][j];
+    for(let j=0;j<FH;j++) p.b1f[j]-=s*g.db1f[j];
+    for(let i=0;i<FH;i++) for(let j=0;j<D;j++) p.W2f[i][j]-=s*g.dW2f[i][j];
+    for(let j=0;j<D;j++) p.b2f[j]-=s*g.db2f[j];
+  }
+}
+
+// predict the NEXT point given the full history so far (causal — uses last position's output)
+function predictNext(history){
+  const {O} = modelForward(history);
+  const o = O[O.length-1];
+  const probs = softmax3([o[2],o[3],o[4]]);
+  let flag = 0, best = probs[0];
+  if(probs[1]>best){flag=1;best=probs[1];}
+  if(probs[2]>best){flag=2;best=probs[2];}
+  return {x:o[0], y:o[1], flag};
+}
+
+// ============================================================
+// DATA / EXAMPLES  (points normalized 0..1, flag 0/1/2 as drawn)
+// ============================================================
+function makeExample(pts){ return {id: cryptoId(), points: pts}; }
+function cryptoId(){ return 'ex_'+Math.random().toString(36).slice(2,9); }
+
+function seedExamples(){
+  const W=300, H=300;
+  const P = (x,y,f)=>({x:x/W,y:y/H,flag:f||0});
+  const ex = [];
+  // Letter "R" — single continuous stroke: stem up, around the bowl, back to stem, diagonal leg
+  ex.push(makeExample([
+    P(70,260), P(70,40), P(150,40), P(185,65), P(185,105), P(150,130), P(70,130), P(170,260,2)
+  ]));
+  // Letter "C" — single continuous stroke: open arc from upper-right around to lower-right
+  ex.push(makeExample([
+    P(200,80), P(150,45), P(100,60), P(65,110), P(60,150), P(65,190), P(100,240), P(150,255), P(200,220,2)
+  ]));
+  return ex;
+}
+
+let examples = seedExamples();
+let activeCardId = null; // tracks which card the keyboard backspace applies to (not required since per-card buttons exist)
+
+// returns copy of points where the LAST point's flag is forced to 2 (stop) -
+// used consistently for training, rendering colour, and vector-text display.
+function effectivePoints(points){
+  if(points.length===0) return points;
+  const copy = points.map(p=>({x:p.x,y:p.y,flag:p.flag}));
+  const last = copy[copy.length-1];
+  // only promote the last point to "stop" if it isn't a break point —
+  // otherwise a just-double-clicked break point gets its flag overwritten
+  // to 2 (stop), which makes the "no connecting line for flag=1" rule
+  // stop applying and a phantom line appears until the next point is added.
+  if(last.flag !== 1){ last.flag = 2; }
+  return copy;
+}
+
+// ============================================================
+// AUGMENTATION
+// ============================================================
+function augmentPolyline(points, variantIndex){
+  if(variantIndex===0){
+    return points.map(p=>({x:p.x,y:p.y,flag:p.flag}));
+  }
+  const angle = (Math.random()*30-15) * Math.PI/180;
+  const scale = 0.85 + Math.random()*0.3;
+  const dx = (Math.random()*0.1-0.05);
+  const dy = (Math.random()*0.1-0.05);
+  const cx=0.5, cy=0.5;
+  const cos=Math.cos(angle), sin=Math.sin(angle);
+  return points.map(p=>{
+    let x = p.x-cx, y = p.y-cy;
+    let xr = x*cos - y*sin, yr = x*sin + y*cos;
+    xr*=scale; yr*=scale;
+    let nx = xr+cx+dx, ny = yr+cy+dy;
+    nx += (Math.random()*0.01-0.005);
+    ny += (Math.random()*0.01-0.005);
+    nx = Math.min(0.98,Math.max(0.02,nx));
+    ny = Math.min(0.98,Math.max(0.02,ny));
+    return {x:nx,y:ny,flag:p.flag};
+  });
+}
+
+// Each training "sample" is now a full stroke sequence. Causal self-attention lets one
+// forward pass compute every curriculum step at once: (1)->(2), (1,2)->(3), ... in parallel.
+function buildAllTrainingSequences(augCount){
+  let all = [];
+  examples.forEach(ex=>{
+    const eff = effectivePoints(ex.points);
+    if(eff.length<2) return;
+    for(let v=0; v<augCount; v++){
+      all.push(augmentPolyline(eff, v));
+    }
+  });
+  return all;
+}
+
+// ============================================================
+// VECTOR-TEXT DISPLAY:  (dx,dy,flag) tuples on a canonical 300x300 scale
+// ============================================================
+function toVectorTuples(points){
+  const eff = effectivePoints(points);
+  const tuples = [];
+  let prevPx=null, prevPy=null;
+  eff.forEach((p,i)=>{
+    const px = Math.round(p.x*VEC_SCALE), py = Math.round(p.y*VEC_SCALE);
+    if(i===0){ tuples.push([0,0,p.flag]); }
+    else { tuples.push([px-prevPx, py-prevPy, p.flag]); }
+    prevPx = px; prevPy = py;
+  });
+  return tuples;
+}
+function formatVectorTuples(tuples){
+  if(tuples.length===0) return '[]';
+  return '[' + tuples.map(t=>'('+t[0]+','+t[1]+','+t[2]+')').join(', ') + ']';
+}
+
+// ============================================================
+// SHARED DRAWING HELPERS
+// ============================================================
+function drawGrid(ctx,W,H,step){
+  ctx.clearRect(0,0,W,H);
+  ctx.strokeStyle = '#1a2130';
+  ctx.lineWidth=1;
+  for(let x=0;x<=W;x+=step){ ctx.beginPath(); ctx.moveTo(x+0.5,0); ctx.lineTo(x+0.5,H); ctx.stroke(); }
+  for(let y=0;y<=H;y+=step){ ctx.beginPath(); ctx.moveTo(0,y+0.5); ctx.lineTo(W,y+0.5); ctx.stroke(); }
+}
+function colorForFlag(f){
+  if(f===1) return '#ff9d5c';
+  if(f===2) return '#ff6b6b';
+  return '#7fb4ff';
+}
+// draws a line from (x1,y1) to (x2,y2) with a small arrowhead at the destination,
+// showing the direction the stroke was drawn in
+function drawArrowLine(ctx, x1,y1,x2,y2, color){
+  ctx.strokeStyle = color;
+  ctx.fillStyle = color;
+  ctx.lineWidth = 1.6;
+  ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+  const angle = Math.atan2(y2-y1, x2-x1);
+  const headLen = 7;
+  ctx.beginPath();
+  ctx.moveTo(x2, y2);
+  ctx.lineTo(x2-headLen*Math.cos(angle-Math.PI/6), y2-headLen*Math.sin(angle-Math.PI/6));
+  ctx.lineTo(x2-headLen*Math.cos(angle+Math.PI/6), y2-headLen*Math.sin(angle+Math.PI/6));
+  ctx.closePath();
+  ctx.fill();
+}
+
+// ============================================================
+// CLICK / DOUBLE-CLICK DISAMBIGUATION
+// (native click+dblclick fire together and double-add points — use a timer instead)
+// ============================================================
+function attachClickHandlers(canvas, onSingle, onDouble){
+  let timer = null;
+  canvas.addEventListener('click', (e)=>{
+    if(timer){
+      clearTimeout(timer); timer = null;
+      onDouble(e);
+    } else {
+      timer = setTimeout(()=>{ onSingle(e); timer = null; }, 260);
+    }
+  });
+}
+
+// ============================================================
+// SAMPLE GRID (all examples visible & editable at once, auto-save)
+// ============================================================
+const sampleGrid = document.getElementById('sampleGrid');
+
+function renderSampleGrid(){
+  sampleGrid.innerHTML = '';
+  document.getElementById('exCount').textContent = '('+examples.length+')';
+
+  examples.forEach((ex, idx)=>{
+    const card = document.createElement('div');
+    card.className = 'sample-card';
+
+    const head = document.createElement('div');
+    head.className = 'cardhead';
+    head.innerHTML = '<span class="label">'+idx+' &middot; '+ex.points.length+' pts</span>';
+    const tools = document.createElement('div');
+    tools.className = 'cardtools';
+    const btnUndo = document.createElement('button'); btnUndo.className='small'; btnUndo.textContent='⌫';
+    const btnClear = document.createElement('button'); btnClear.className='small'; btnClear.textContent='clear';
+    const btnDel = document.createElement('button'); btnDel.className='small danger'; btnDel.textContent='✕';
+    tools.appendChild(btnUndo); tools.appendChild(btnClear); tools.appendChild(btnDel);
+    head.appendChild(tools);
+    card.appendChild(head);
+
+    const canvas = document.createElement('canvas');
+    canvas.width = CARD_SIZE; canvas.height = CARD_SIZE;
+    card.appendChild(canvas);
+
+    const vecText = document.createElement('div');
+    vecText.className = 'vec-text';
+    card.appendChild(vecText);
+
+    sampleGrid.appendChild(card);
+
+    const cctx = canvas.getContext('2d');
+    function renderCard(){
+      drawGrid(cctx, CARD_SIZE, CARD_SIZE, 15);
+      const eff = effectivePoints(ex.points);
+      let prev = null;
+      cctx.lineWidth = 2;
+      eff.forEach((p)=>{
+        const px = p.x*CARD_SIZE, py = p.y*CARD_SIZE;
+        if(prev && p.flag!==1){
+          drawArrowLine(cctx, prev.px, prev.py, px, py, '#5d7fb0');
+        }
+        cctx.fillStyle = colorForFlag(p.flag);
+        cctx.beginPath(); cctx.arc(px,py,2.5,0,7); cctx.fill();
+        prev = {px,py};
+      });
+      head.querySelector('.label').textContent = idx+' · '+ex.points.length+' pts';
+      vecText.textContent = formatVectorTuples(toVectorTuples(ex.points));
+    }
+    renderCard();
+
+    function pointFromEvent(e){
+      const rect = canvas.getBoundingClientRect();
+      const x = (e.clientX-rect.left) * (CARD_SIZE/rect.width) / CARD_SIZE;
+      const y = (e.clientY-rect.top) * (CARD_SIZE/rect.height) / CARD_SIZE;
+      return {x,y};
+    }
+    attachClickHandlers(canvas,
+      (e)=>{ activeCardId = ex.id; const {x,y}=pointFromEvent(e); ex.points.push({x,y,flag:0}); renderCard(); },
+      (e)=>{ activeCardId = ex.id; const {x,y}=pointFromEvent(e); ex.points.push({x,y,flag:1}); renderCard(); }
+    );
+    btnUndo.addEventListener('click', ()=>{ ex.points.pop(); renderCard(); });
+    btnClear.addEventListener('click', ()=>{ ex.points = []; renderCard(); });
+    btnDel.addEventListener('click', ()=>{
+      examples = examples.filter(e=>e.id!==ex.id);
+      renderSampleGrid();
+    });
+  });
+
+  const addCard = document.createElement('div');
+  addCard.className = 'add-card';
+  addCard.textContent = '+ Add Sample';
+  addCard.addEventListener('click', ()=>{
+    examples.push(makeExample([]));
+    renderSampleGrid();
+  });
+  sampleGrid.appendChild(addCard);
+}
+renderSampleGrid();
+
+// ============================================================
+// MATRIX HEATMAPS
+// ============================================================
+const wqCanvas = document.getElementById('wqCanvas'), wqctx = wqCanvas.getContext('2d');
+const wkCanvas = document.getElementById('wkCanvas'), wkctx = wkCanvas.getContext('2d');
+const wvCanvas = document.getElementById('wvCanvas'), wvctx = wvCanvas.getContext('2d');
+const woCanvas = document.getElementById('woCanvas'), woctx = woCanvas.getContext('2d');
+const w1fCanvas = document.getElementById('w1fCanvas'), w1fctx = w1fCanvas.getContext('2d');
+const w2fCanvas = document.getElementById('w2fCanvas'), w2fctx = w2fCanvas.getContext('2d');
+const w2Canvas = document.getElementById('w2Canvas'), w2ctx = w2Canvas.getContext('2d');
+
+function renderMatrices(){
+  const selEl = document.getElementById('matrixLayer');
+  let idx = parseInt(selEl.value,10);
+  if(isNaN(idx) || idx>=model.layers.length) idx = 0;
+  const L = model.layers[idx];
+  drawHeatmap(wqCanvas, wqctx, L.Wq, 'wq'+idx);
+  drawHeatmap(wkCanvas, wkctx, L.Wk, 'wk'+idx);
+  drawHeatmap(wvCanvas, wvctx, L.Wv, 'wv'+idx);
+  drawHeatmap(woCanvas, woctx, L.Wo, 'wo'+idx);
+  drawHeatmap(w1fCanvas, w1fctx, L.W1f, 'w1f'+idx);
+  drawHeatmap(w2fCanvas, w2fctx, L.W2f, 'w2f'+idx);
+  drawHeatmap(w2Canvas, w2ctx, model.Whead, 'whead');
+  document.getElementById('wqdim').textContent = model.D+'×'+model.D+deltaLabel('wq'+idx, L.Wq);
+  document.getElementById('wkdim').textContent = model.D+'×'+model.D+deltaLabel('wk'+idx, L.Wk);
+  document.getElementById('wvdim').textContent = model.D+'×'+model.D+deltaLabel('wv'+idx, L.Wv);
+  document.getElementById('wodim').textContent = model.D+'×'+model.D+deltaLabel('wo'+idx, L.Wo);
+  document.getElementById('w1fdim').textContent = model.D+'×'+L.W1f[0].length+deltaLabel('w1f'+idx, L.W1f);
+  document.getElementById('w2fdim').textContent = L.W1f[0].length+'×'+model.D+deltaLabel('w2f'+idx, L.W2f);
+  document.getElementById('w2dim').textContent = model.D+'×'+OUT_DIM+deltaLabel('whead', model.Whead);
+}
+document.getElementById('matrixLayer').addEventListener('change', renderMatrices);
+
+// computes total |change| since this matrix's last render, and remembers the current
+// values for next time — gives a numeric proof of movement even when the color barely shifts
+let lastMatrixSnapshot = {};
+function deltaLabel(key, M){
+  let deltaStr = '';
+  if(key in lastMatrixSnapshot){
+    const prevM = lastMatrixSnapshot[key];
+    let sum = 0;
+    for(let i=0;i<M.length;i++) for(let j=0;j<M[0].length;j++) sum += Math.abs(M[i][j]-prevM[i][j]);
+    deltaStr = ' · Δ'+sum.toFixed(4);
+  }
+  lastMatrixSnapshot[key] = M.map(row=>row.slice());
+  return deltaStr;
+}
+
+function heatColor(v, maxAbs){
+  const t = Math.max(-1,Math.min(1, v/(maxAbs||1)));
+  if(t>=0){
+    const r = Math.round(40 + t*215), g = Math.round(40+t*140), b = Math.round(40+t*40);
+    return 'rgb('+r+','+g+','+b+')';
+  } else {
+    const s=-t;
+    const r = Math.round(40+s*30), g = Math.round(40+s*110), b = Math.round(40+s*215);
+    return 'rgb('+r+','+g+','+b+')';
+  }
+}
+// scale tracked per matrix (by key), growing with true magnitude rather than
+// re-stretching to the current frame's max every call — this way genuine
+// weight growth during training shows up as colors intensifying, not just
+// as a shuffled pattern that always fills the same color range.
+let heatmapMaxAbs = {};
+function drawHeatmap(canvas, ctx, M, key){
+  const rows = M.length, cols = M[0].length;
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0,0,W,H);
+  let frameMax = 1e-6;
+  for(let i=0;i<rows;i++) for(let j=0;j<cols;j++) frameMax = Math.max(frameMax, Math.abs(M[i][j]));
+  if(!(key in heatmapMaxAbs)) heatmapMaxAbs[key] = frameMax;
+  else heatmapMaxAbs[key] = Math.max(heatmapMaxAbs[key], frameMax);
+  const maxAbs = heatmapMaxAbs[key];
+  const cw = W/cols, ch = H/rows;
+  for(let i=0;i<rows;i++){
+    for(let j=0;j<cols;j++){
+      ctx.fillStyle = heatColor(M[i][j], maxAbs);
+      ctx.fillRect(j*cw, i*ch, Math.ceil(cw), Math.ceil(ch));
+    }
+  }
+}
+
+// ============================================================
+// LOSS CURVE
+// ============================================================
+const lossCanvas = document.getElementById('lossCanvas');
+const lctx = lossCanvas.getContext('2d');
+let lossHistory = [];
+
+function renderLossCurve(){
+  const W = lossCanvas.width, H = lossCanvas.height;
+  lctx.clearRect(0,0,W,H);
+  lctx.strokeStyle = '#1a2130';
+  for(let y=0;y<H;y+=28){ lctx.beginPath(); lctx.moveTo(0,y); lctx.lineTo(W,y); lctx.stroke(); }
+  if(lossHistory.length<2) return;
+  const maxL = Math.max(...lossHistory)*1.05 || 1;
+  lctx.strokeStyle = '#5ee6c8';
+  lctx.lineWidth = 2;
+  lctx.beginPath();
+  lossHistory.forEach((l,i)=>{
+    const x = (i/(lossHistory.length-1))*W;
+    const y = H - (l/maxL)*H;
+    if(i===0) lctx.moveTo(x,y); else lctx.lineTo(x,y);
+  });
+  lctx.stroke();
+}
+
+// ============================================================
+// TRAINING LOOP
+// ============================================================
+let training = false;
+let stopRequested = false;
+
+function getBatches(sequences, batchSizeVal){
+  const shuffled = sequences.slice();
+  for(let i=shuffled.length-1;i>0;i--){
+    const j=Math.floor(Math.random()*(i+1));
+    [shuffled[i],shuffled[j]] = [shuffled[j],shuffled[i]];
+  }
+  if(batchSizeVal==='all') return [shuffled];
+  const bs = parseInt(batchSizeVal,10);
+  const batches = [];
+  for(let i=0;i<shuffled.length;i+=bs) batches.push(shuffled.slice(i,i+bs));
+  return batches;
+}
+
+async function runTraining(){
+  const augCount = parseInt(document.getElementById('augCount').value,10);
+  const batchSizeVal = document.getElementById('batchSize').value;
+  const epochs = parseInt(document.getElementById('epochs').value,10);
+  const lr = parseFloat(document.getElementById('lr').value);
+  const dModelVal = parseInt(document.getElementById('hidden').value,10);
+  const nLayersVal = parseInt(document.getElementById('layers').value,10);
+  const nHeadsVal = parseInt(document.getElementById('heads').value,10);
+
+  if(dModelVal !== D_MODEL || nLayersVal !== N_LAYERS || nHeadsVal !== N_HEADS){ initModel(dModelVal, nLayersVal, nHeadsVal); }
+
+  const sequences = buildAllTrainingSequences(augCount);
+  if(sequences.length===0){ alert('No training data — draw at least one sample with 2+ points.'); return; }
+  const totalSteps = sequences.reduce((a,s)=>a+(s.length-1),0);
+  document.getElementById('statSamples').textContent = sequences.length+' sequences · '+totalSteps+' curriculum steps';
+
+  training = true; stopRequested = false;
+  document.getElementById('btnTrain').disabled = true;
+  document.getElementById('btnStop').disabled = false;
+
+  for(let epoch=1; epoch<=epochs; epoch++){
+    if(stopRequested) break;
+    const batches = getBatches(sequences, batchSizeVal);
+    let epochLoss = 0;
+    for(const batch of batches){
+      const acc = zeroGradsLike();
+      let batchLossSum = 0;
+      for(const seq of batch){
+        const {loss, grads, count} = sequenceLossAndGrad(seq);
+        accumulate(acc, grads);
+        batchLossSum += loss*count;
+      }
+      applyUpdate(acc, lr, batch.length);
+      epochLoss += batchLossSum;
+    }
+    epochLoss /= totalSteps;
+    lossHistory.push(epochLoss);
+    if(lossHistory.length>400) lossHistory.shift();
+
+    document.getElementById('statEpoch').textContent = epoch+' / '+epochs;
+    document.getElementById('statLoss').textContent = epochLoss.toFixed(5);
+    document.getElementById('progBar').style.width = (epoch/epochs*100)+'%';
+    renderMatrices();
+    renderLossCurve();
+    await new Promise(r=>setTimeout(r, 0));
+  }
+
+  training = false;
+  document.getElementById('btnTrain').disabled = false;
+  document.getElementById('btnStop').disabled = true;
+}
+
+document.getElementById('btnTrain').addEventListener('click', ()=>{
+  if(!training) runTraining();
+});
+document.getElementById('btnStop').addEventListener('click', ()=>{ stopRequested = true; });
+document.getElementById('btnReset').addEventListener('click', ()=>{
+  const dModelVal = parseInt(document.getElementById('hidden').value,10);
+  const nLayersVal = parseInt(document.getElementById('layers').value,10);
+  const nHeadsVal = parseInt(document.getElementById('heads').value,10);
+  initModel(dModelVal, nLayersVal, nHeadsVal);
+  lossHistory = [];
+  renderMatrices();
+  renderLossCurve();
+  document.getElementById('statEpoch').textContent = '0 / 0';
+  document.getElementById('statLoss').textContent = '-';
+  document.getElementById('progBar').style.width = '0%';
+});
+// ============================================================
+// INFERENCE CANVAS
+// ============================================================
+const inferCanvas = document.getElementById('inferCanvas');
+const ictx = inferCanvas.getContext('2d');
+const inferVecText = document.getElementById('inferVecText');
+let seedPoints = []; // normalized {x,y,flag}
+let aiPoints = [];   // normalized {x,y,flag}
+
+function renderInfer(){
+  drawGrid(ictx, INFER_W, INFER_H, 28);
+  let prev = null;
+  seedPoints.forEach(p=>{
+    const px=p.x*INFER_W, py=p.y*INFER_H;
+    if(prev && p.flag!==1){
+      drawArrowLine(ictx, prev.px, prev.py, px, py, '#5d7fb0');
+    }
+    ictx.fillStyle = '#7fb4ff';
+    ictx.beginPath(); ictx.arc(px,py,3,0,7); ictx.fill();
+    prev = {px,py};
+  });
+  aiPoints.forEach(p=>{
+    const px=p.x*INFER_W, py=p.y*INFER_H;
+    if(prev && p.flag!==1){
+      drawArrowLine(ictx, prev.px, prev.py, px, py, 'rgba(255,157,92,0.85)');
+    }
+    ictx.fillStyle = '#ff9d5c';
+    ictx.beginPath(); ictx.arc(px,py,3,0,7); ictx.fill();
+    prev = {px,py};
+  });
+  const combined = seedPoints.concat(aiPoints);
+  inferVecText.textContent = combined.length ? formatVectorTuples(toVectorTuples(combined)) : 'vector sequence will appear here';
+}
+renderInfer();
+
+function inferPointFromEvent(e){
+  const rect = inferCanvas.getBoundingClientRect();
+  const x = (e.clientX-rect.left) * (INFER_W/rect.width) / INFER_W;
+  const y = (e.clientY-rect.top) * (INFER_H/rect.height) / INFER_H;
+  return {x,y};
+}
+attachClickHandlers(inferCanvas,
+  (e)=>{ if(aiPoints.length>0) return; const {x,y}=inferPointFromEvent(e); seedPoints.push({x,y,flag:0}); renderInfer(); },
+  (e)=>{ if(aiPoints.length>0) return; const {x,y}=inferPointFromEvent(e); seedPoints.push({x,y,flag:1}); renderInfer(); }
+);
+document.getElementById('btnClearInfer').addEventListener('click', ()=>{
+  seedPoints = []; aiPoints = []; renderInfer();
+});
+
+document.getElementById('btnGenerate').addEventListener('click', async ()=>{
+  if(seedPoints.length<1){ alert('Draw at least one seed point first.'); return; }
+  aiPoints = [];
+  const maxSteps = parseInt(document.getElementById('maxSteps').value,10);
+  let history = seedPoints.map(p=>({x:p.x,y:p.y,flag:p.flag}));
+
+  for(let step=0; step<maxSteps; step++){
+    // full causal forward pass over everything drawn/generated so far —
+    // the model attends back to every earlier point, not just a fixed window
+    const pred = predictNext(history);
+    const clampedX = Math.min(0.99,Math.max(0.01,pred.x));
+    const clampedY = Math.min(0.99,Math.max(0.01,pred.y));
+    const newPoint = {x:clampedX, y:clampedY, flag:pred.flag};
+    history.push(newPoint);
+    aiPoints.push(newPoint);
+    renderInfer();
+    await new Promise(r=>setTimeout(r, 140));
+    if(pred.flag===2) break; // stop as soon as the model predicts "stop"
+  }
+});
+
+// ============================================================
+// INIT
+// ============================================================
+initModel(parseInt(document.getElementById('hidden').value,10), parseInt(document.getElementById('layers').value,10), parseInt(document.getElementById('heads').value,10));
+renderMatrices();
+renderLossCurve();
+
+})();
+</script>
+</body>
+</html>
