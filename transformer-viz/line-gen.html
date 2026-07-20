@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Autoregressive Polylines Lab — Transformer Model</title>
+<title>Autoregressive Polyline Lab — Transformer Model</title>
 <style>
   :root{
     --bg:#0b0e14;
@@ -18,14 +18,16 @@
     --sans: 'Inter','Segoe UI',sans-serif;
   }
   *{box-sizing:border-box;}
-  html,body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);}
-  body{padding:22px 26px 60px;}
+  html,body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);overflow-x:hidden;}
+  body{padding:22px 26px 60px;max-width:100vw;}
   h1{font-family:var(--mono);font-size:20px;letter-spacing:0.5px;margin:0 0 2px 0;font-weight:600;}
   h1 .tag{color:var(--accent);}
   .subtitle{color:var(--dim);font-size:12.5px;margin-bottom:18px;font-family:var(--mono);}
-  .layout{display:grid;grid-template-columns:440px 1fr 300px;gap:16px;align-items:start;}
-  @media (max-width:1180px){.layout{grid-template-columns:1fr;}}
-  .panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin-bottom:16px;}
+  .layout{display:grid;grid-template-columns:1fr 1.3fr 1fr;gap:16px;align-items:start;}
+  .layout > div{min-width:0;}
+  .layout .full-width{grid-column:1 / -1;}
+  @media (max-width:900px){.layout{grid-template-columns:1fr;} .layout .full-width{grid-column:auto;}}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin-bottom:16px;min-width:0;box-sizing:border-box;}
   .panel h2{font-family:var(--mono);font-size:11.5px;text-transform:uppercase;letter-spacing:1.2px;color:var(--accent);margin:0 0 10px 0;font-weight:600;}
   .panel h2 small{color:var(--dim);text-transform:none;letter-spacing:0;font-weight:400;}
   .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
@@ -49,9 +51,8 @@
   }
   input[type=range]{width:100%;accent-color:var(--accent);}
   .field{flex:1;min-width:90px;}
-  canvas{display:block;border-radius:8px;background:#0d1119;}
-  #inferCanvas{width:400px;max-width:100%;height:400px;display:block;margin:0;}
-  .canvas-wrap{position:relative;border:1px solid var(--line);border-radius:8px;overflow:hidden;}
+  canvas{display:block;border-radius:8px;background:#0d1119;max-width:100%;height:auto;}
+  .canvas-wrap{position:relative;border:1px solid var(--line);border-radius:8px;overflow:hidden;min-width:0;}
   .hint{font-size:11px;color:var(--dim);margin-top:6px;line-height:1.5;}
   .mono{font-family:var(--mono);}
   .stat-row{display:flex;justify-content:space-between;font-family:var(--mono);font-size:12px;padding:3px 0;border-bottom:1px dashed var(--line);}
@@ -64,6 +65,12 @@
   .matrix-block .cap{font-family:var(--mono);font-size:11px;color:var(--dim);margin-bottom:5px;display:flex;justify-content:space-between;}
   footer{text-align:center;color:var(--dim);font-family:var(--mono);font-size:11.5px;margin-top:28px;letter-spacing:.3px;}
   footer .dot-sep{color:var(--line);margin:0 8px;}
+  .matrix-section-label{font-family:var(--mono);font-size:10.5px;color:var(--dim);text-transform:uppercase;letter-spacing:0.6px;margin:14px 0 8px 0;}
+  .matrix-section-label:first-of-type{margin-top:2px;}
+  .matrix-strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;}
+  .matrix-canvas{width:100%;height:auto;}
+  footer a{color:var(--accent);text-decoration:none;}
+  footer a:hover{text-decoration:underline;}
   .progress-outer{width:100%;height:6px;background:var(--panel2);border-radius:3px;overflow:hidden;margin-top:8px;}
   .progress-inner{height:100%;background:var(--accent);width:0%;transition:width .15s;}
   .divider{height:1px;background:var(--line);margin:10px 0;}
@@ -89,7 +96,7 @@
 </head>
 <body>
 
-<h1><span class="tag">Autoregressive Polylines</span> Lab <span class="tag">—</span> Transformer Model</h1>
+<h1><span class="tag">Autoregressive Polyline</span> Lab <span class="tag">—</span> Transformer Model</h1>
 <div class="subtitle">draw a stroke, watch a decoder-only Transformer learn to continue it — one point at a time, one attention weight at a time</div>
 
 <div class="layout">
@@ -182,71 +189,6 @@
     </div>
 
     <div class="panel">
-      <h2>Inference — Draw a Seed, Let the Model Continue</h2>
-      <div class="canvas-wrap" style="width:400px;max-width:100%;">
-        <canvas id="inferCanvas" width="400" height="400"></canvas>
-      </div>
-      <div class="legend">
-        <span><span class="dot" style="background:#7fb4ff"></span>your seed stroke</span>
-        <span><span class="dot" style="background:var(--accent2)"></span>AI-generated continuation</span>
-      </div>
-      <div class="row" style="margin-top:10px;">
-        <button class="primary" id="btnGenerate">&#10148; Generate Continuation</button>
-        <button id="btnClearInfer" class="danger">Clear</button>
-        <div class="field" style="max-width:150px;">
-          <label>Max AI steps</label>
-          <input type="number" id="maxSteps" value="30" min="2" max="120">
-        </div>
-      </div>
-      <div class="hint">Click to lay down a few points of your own line (double-click for a new segment — no connecting line is drawn to it), then hit Generate — the model predicts <span class="mono">(x,y,flag)</span> autoregressively and stops as soon as it outputs <b>flag = 2 (stop)</b>, or when it reaches the max-steps limit below, whichever comes first.</div>
-      <div class="vec-text" id="inferVecText" style="max-height:90px;">vector sequence will appear here</div>
-    </div>
-  </div>
-
-  <!-- ================= RIGHT: MATRICES ================= -->
-  <div>
-    <div class="panel">
-      <h2>Live Weight Matrices</h2>
-      <div class="row" style="margin-bottom:10px;">
-        <div class="field">
-          <label>Viewing layer</label>
-          <select id="matrixLayer"></select>
-        </div>
-      </div>
-      <div class="matrix-block">
-        <div class="cap"><span>W<sub>head</sub> — final &rarr; output (all layers feed this)</span><span id="w2dim" class="mono"></span></div>
-        <canvas id="w2Canvas" width="268" height="110"></canvas>
-      </div>
-      <div class="matrix-block">
-        <div class="cap"><span>W1<sub>ffn</sub> — feed-forward in</span><span id="w1fdim" class="mono"></span></div>
-        <canvas id="w1fCanvas" width="268" height="110"></canvas>
-      </div>
-      <div class="matrix-block">
-        <div class="cap"><span>W2<sub>ffn</sub> — feed-forward out</span><span id="w2fdim" class="mono"></span></div>
-        <canvas id="w2fCanvas" width="268" height="110"></canvas>
-      </div>
-      <div class="divider"></div>
-      <div class="hint" style="margin-top:0;margin-bottom:10px;">Below: causal self-attention weights for the selected layer. These typically move <b>much less</b> than the matrices above — layer norm + softmax make attention less sensitive to small weight changes, so most of the learning shows up in the feed-forward and output weights instead. The Δ figure next to each matrix is the total weight movement since the last redraw, so you can confirm it's updating even when the color barely shifts.</div>
-      <div class="matrix-block">
-        <div class="cap"><span>W<sub>Q</sub> — query</span><span id="wqdim" class="mono"></span></div>
-        <canvas id="wqCanvas" width="268" height="110"></canvas>
-      </div>
-      <div class="matrix-block">
-        <div class="cap"><span>W<sub>K</sub> — key</span><span id="wkdim" class="mono"></span></div>
-        <canvas id="wkCanvas" width="268" height="110"></canvas>
-      </div>
-      <div class="matrix-block">
-        <div class="cap"><span>W<sub>V</sub> — value</span><span id="wvdim" class="mono"></span></div>
-        <canvas id="wvCanvas" width="268" height="110"></canvas>
-      </div>
-      <div class="matrix-block">
-        <div class="cap"><span>W<sub>O</sub> — attention output proj.</span><span id="wodim" class="mono"></span></div>
-        <canvas id="woCanvas" width="268" height="110"></canvas>
-      </div>
-      <div class="hint">Blue = negative weight, amber = positive. Redrawn every epoch. Switch "Viewing layer" to inspect any of the (up to 8) transformer blocks.</div>
-    </div>
-
-    <div class="panel">
       <h2>Network Spec</h2>
       <div class="stat-row"><span>Architecture</span><span>decoder-only Transformer</span></div>
       <div class="stat-row"><span>Attention</span><span>causal, <span id="specHeads">2</span> heads</span></div>
@@ -259,12 +201,83 @@
     </div>
   </div>
 
+  <!-- ================= RIGHT: INFERENCE ================= -->
+  <div>
+    <div class="panel">
+      <h2>Inference — Draw a Seed, Let the Model Continue</h2>
+      <div class="canvas-wrap" style="width:100%;max-width:400px;">
+        <canvas id="inferCanvas" width="400" height="400"></canvas>
+      </div>
+      <div class="legend">
+        <span><span class="dot" style="background:#7fb4ff"></span>your seed stroke</span>
+        <span><span class="dot" style="background:var(--accent2)"></span>AI-generated continuation</span>
+      </div>
+      <div class="row" style="margin-top:10px;">
+        <button class="primary" id="btnGenerate">&#10148; Generate Continuation</button>
+        <button id="btnClearInfer" class="danger">Clear</button>
+      </div>
+      <div class="row" style="margin-top:8px;">
+        <div class="field">
+          <label>Max AI steps</label>
+          <input type="number" id="maxSteps" value="30" min="2" max="120">
+        </div>
+      </div>
+      <div class="hint">Click to lay down a few points of your own line (double-click for a new segment — no connecting line is drawn to it), then hit Generate — the model predicts <span class="mono">(x,y,flag)</span> autoregressively and stops as soon as it outputs <b>flag = 2 (stop)</b>, or when it reaches the max-steps limit below, whichever comes first.</div>
+      <div class="vec-text" id="inferVecText" style="max-height:90px;">vector sequence will appear here</div>
+    </div>
+  </div>
+
+  <!-- ================= BOTTOM: MATRICES (full width) ================= -->
+  <div class="full-width">
+    <div class="panel">
+      <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:4px;">
+        <h2 style="margin:0;">Live Weight Matrices</h2>
+        <div class="field" style="max-width:170px;">
+          <label style="margin-bottom:2px;">Viewing layer</label>
+          <select id="matrixLayer"></select>
+        </div>
+      </div>
+      <div class="matrix-section-label">Most active — feed-forward &amp; output (watch these for clear movement)</div>
+      <div class="matrix-strip">
+        <div class="matrix-block">
+          <div class="cap"><span>W<sub>head</sub> — final &rarr; output</span><span id="w2dim" class="mono"></span></div>
+          <canvas class="matrix-canvas" id="w2Canvas" width="268" height="110"></canvas>
+        </div>
+        <div class="matrix-block">
+          <div class="cap"><span>W1<sub>ffn</sub> — feed-forward in</span><span id="w1fdim" class="mono"></span></div>
+          <canvas class="matrix-canvas" id="w1fCanvas" width="268" height="110"></canvas>
+        </div>
+        <div class="matrix-block">
+          <div class="cap"><span>W2<sub>ffn</sub> — feed-forward out</span><span id="w2fdim" class="mono"></span></div>
+          <canvas class="matrix-canvas" id="w2fCanvas" width="268" height="110"></canvas>
+        </div>
+      </div>
+      <div class="matrix-section-label">Self-attention (selected layer) — moves more slowly; layer norm + softmax damp small weight changes</div>
+      <div class="matrix-strip">
+        <div class="matrix-block">
+          <div class="cap"><span>W<sub>Q</sub> — query</span><span id="wqdim" class="mono"></span></div>
+          <canvas class="matrix-canvas" id="wqCanvas" width="268" height="110"></canvas>
+        </div>
+        <div class="matrix-block">
+          <div class="cap"><span>W<sub>K</sub> — key</span><span id="wkdim" class="mono"></span></div>
+          <canvas class="matrix-canvas" id="wkCanvas" width="268" height="110"></canvas>
+        </div>
+        <div class="matrix-block">
+          <div class="cap"><span>W<sub>V</sub> — value</span><span id="wvdim" class="mono"></span></div>
+          <canvas class="matrix-canvas" id="wvCanvas" width="268" height="110"></canvas>
+        </div>
+        <div class="matrix-block">
+          <div class="cap"><span>W<sub>O</sub> — output proj.</span><span id="wodim" class="mono"></span></div>
+          <canvas class="matrix-canvas" id="woCanvas" width="268" height="110"></canvas>
+        </div>
+      </div>
+      <div class="hint">Blue = negative weight, amber = positive. The Δ figure next to each matrix is total weight movement since the last redraw — proof it's updating even when the color barely shifts. Redrawn every epoch.</div>
+    </div>
+  </div>
+
 </div>
 
-<footer>
-  Credit by SAIG Lab <span class="dot-sep">·</span> CE-KMITL <span class="dot-sep">·</span> Powered by Claude
-  <div style="padding-top:5px;"><a style="color:#8a93a8;" target="_blank" href="https://github.com/LLM-CE-KMITL/learning/">https://github.com/LLM-CE-KMITL/learning</a> </div>
-</footer>
+<footer>Credit by SAIG Lab <span class="dot-sep">·</span> CE-KMITL <span class="dot-sep">·</span> Powered by Claude <span class="dot-sep">·</span> <a href="https://github.com/LLM-CE-KMITL/learning" target="_blank" rel="noopener">github.com/LLM-CE-KMITL/learning</a></footer>
 
 <script>
 (function(){
@@ -619,13 +632,13 @@ function seedExamples(){
   const W=300, H=300;
   const P = (x,y,f)=>({x:x/W,y:y/H,flag:f||0});
   const ex = [];
-  // Letter "R" — single continuous stroke: stem up, around the bowl, back to stem, diagonal leg
+  // Reconstructed from vector sequence:
+  // [(0,0,0), (23,-25,0), (55,0,0), (30,25,0), (0,54,0), (-23,38,0), (-56,31,0), (-44,33,0),
+  //  (-48,-35,0), (-30,-40,0), (-19,-50,0), (3,-41,0), (34,-28,0), (44,-7,0), (26,31,2)]
+  // by cumulative-summing the deltas and centering the result on a 300×300 canvas.
   ex.push(makeExample([
-    P(70,260), P(70,40), P(150,40), P(185,65), P(185,105), P(150,130), P(70,130), P(170,260,2)
-  ]));
-  // Letter "C" — single continuous stroke: open arc from upper-right around to lower-right
-  ex.push(makeExample([
-    P(200,80), P(150,45), P(100,60), P(65,110), P(60,150), P(65,190), P(100,240), P(150,255), P(200,220,2)
+    P(152,85), P(175,60), P(230,60), P(260,85), P(260,139), P(237,177), P(181,208), P(137,241),
+    P(89,206), P(59,166), P(40,116), P(43,75), P(77,47), P(121,40), P(147,71,2)
   ]));
   return ex;
 }
