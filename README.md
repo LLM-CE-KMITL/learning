@@ -1,4 +1,7 @@
 # LLM Learning
+
+Welcome to the LLM Learning Hub, an interactive educational initiative designed to make machine learning, deep learning, and language models visual and intuitive. Developed by the SAIG Lab at King Mongkut's Institute of Technology Ladkrabang (KMITL), these visualizers break down complex AI architectures into real-time, interactive demonstrations.
+
 ## Machine Learning
 * Linear Regression https://llm-ce-kmitl.github.io/learning/ml-viz/linear.html
 * Multilayer Perceptron  https://llm-ce-kmitl.github.io/learning/ml-viz/mlp.html
