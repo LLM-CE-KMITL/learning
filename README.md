@@ -8,3 +8,8 @@
 * Word2Vec https://llm-ce-kmitl.github.io/learning/word2vec-viz/cbow.html
 * Transformer (text) https://llm-ce-kmitl.github.io/learning/transformer-viz/text-gen.html
 * Transformer (line) https://llm-ce-kmitl.github.io/learning/transformer-viz/line-gen.html
+
+## Last Lines
+* AI Whisperer: Rathachai Chawuthai ( https://rathachai.creatier.pro/ )
+  * SAIG lab, Computer Engineering, KMITL
+* Main Contributor: Claude
