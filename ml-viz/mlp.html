@@ -1,0 +1,1703 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>MLP Backpropagation Simulator</title>
+<style>
+  :root{
+    --bg: #0f1420;
+    --panel: #161d2e;
+    --panel-2: #1c2438;
+    --ink: #e8ecf5;
+    --dim: #8b93a7;
+    --line: #2a3350;
+    --accent: #5ec8a6;      /* forward */
+    --accent-2: #e8925c;    /* backward */
+    --pos: #e0574f;         /* positive weight */
+    --neg: #4a7fd6;         /* negative weight */
+    --yellow: #f2c94c;
+    --mono: 'JetBrains Mono', 'Consolas', monospace;
+    --sans: 'Inter', -apple-system, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:var(--sans); font-size:14px;
+    padding:20px;
+  }
+  h1{
+    font-size:19px; font-weight:600; margin:0 0 2px 0; letter-spacing:.2px;
+  }
+  .subtitle{color:var(--dim); font-size:12.5px; margin-bottom:16px;}
+  .credit{color:var(--dim); font-size:11px; margin-top:22px; text-align:center; opacity:.7;}
+  .credit a{color:var(--dim);}
+
+  .layout{
+    display:grid;
+    grid-template-columns: 1fr 300px;
+    gap:14px;
+    max-width:1320px;
+    margin:0 auto;
+  }
+  .main-col{display:flex; flex-direction:column; gap:14px;}
+  .side-col{display:flex; flex-direction:column; gap:14px;}
+  .dual-pane-row{display:flex; gap:14px; flex-wrap:wrap;}
+  .dual-pane-row .pane-half{flex:1 1 380px; min-width:320px;}
+
+  .panel{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:14px 16px;
+  }
+  .panel h2{
+    font-size:11.5px; text-transform:uppercase; letter-spacing:.08em;
+    color:var(--dim); margin:0 0 10px 0; font-weight:600;
+  }
+  .panel h2 .note{color:var(--dim); font-weight:400; text-transform:none; letter-spacing:0; font-size:11.5px;}
+
+  /* Controls */
+  .controls-row{display:flex; flex-wrap:wrap; gap:8px; align-items:center;}
+  button{
+    background:var(--panel-2); color:var(--ink); border:1px solid var(--line);
+    padding:7px 12px; border-radius:7px; cursor:pointer; font-size:12.5px;
+    font-family:var(--sans); transition:background .15s, border-color .15s;
+  }
+  button:hover{background:#232c46; border-color:#3a4570;}
+  button:active{transform:translateY(1px);}
+  button.primary{background:var(--accent); color:#0b1a15; border-color:var(--accent); font-weight:600;}
+  button.primary:hover{background:#6dd4b3;}
+  button.warn{background:var(--accent-2); color:#2a1508; border-color:var(--accent-2); font-weight:600;}
+  button.warn:hover{background:#f0a273;}
+  button:disabled{opacity:.4; cursor:not-allowed;}
+
+  .field{display:flex; flex-direction:column; gap:4px; min-width:120px;}
+  .field label{font-size:11px; color:var(--dim);}
+  .field .val{color:var(--ink); font-family:var(--mono); font-size:11.5px;}
+  select, input[type=number]{
+    background:var(--panel-2); color:var(--ink); border:1px solid var(--line);
+    border-radius:6px; padding:5px 7px; font-family:var(--sans); font-size:12.5px;
+  }
+  input[type=range]{
+    -webkit-appearance:none; width:100%; height:4px; background:var(--line); border-radius:2px; outline:none;
+  }
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none; width:13px; height:13px; border-radius:50%;
+    background:var(--accent); cursor:pointer; border:2px solid #0b1a15;
+  }
+
+  .segmented{display:flex; border:1px solid var(--line); border-radius:7px; overflow:hidden;}
+  .segmented button{
+    border:none; border-radius:0; background:var(--panel-2); font-size:12px; padding:6px 12px;
+  }
+  .segmented button.active{background:var(--accent); color:#0b1a15; font-weight:600;}
+  .segmented button + button{border-left:1px solid var(--line);}
+
+  .phase-tag{
+    font-family:var(--mono); font-size:11px; padding:3px 9px; border-radius:20px;
+    border:1px solid var(--line); color:var(--dim);
+  }
+  .phase-tag.fwd{color:var(--accent); border-color:var(--accent);}
+  .phase-tag.bwd{color:var(--accent-2); border-color:var(--accent-2);}
+
+  /* Dataset table */
+  table{width:100%; border-collapse:collapse; font-size:12.5px;}
+  th{text-align:left; color:var(--dim); font-weight:500; padding:4px 6px; font-size:11px; text-transform:uppercase; letter-spacing:.05em;}
+  td{padding:3px 6px;}
+  tr.active-row{background:rgba(94,200,166,.10);}
+  tr.active-row td:first-child{border-left:2px solid var(--accent);}
+  tr.in-batch td:first-child{box-shadow: inset 3px 0 0 var(--line);}
+  input.cell{
+    width:64px; background:var(--panel-2); border:1px solid var(--line); color:var(--ink);
+    border-radius:5px; padding:4px 6px; font-family:var(--mono); font-size:12px;
+  }
+  select.cell{width:72px;}
+  .table-actions{display:flex; gap:8px; margin-top:10px; align-items:center;}
+
+  /* Scatter plot */
+  .scatter-axis{stroke:#2a3350; stroke-width:1;}
+  .scatter-grid{stroke:#1c2438; stroke-width:1;}
+  .scatter-tick{fill:var(--dim); font-size:9px; font-family:var(--mono);}
+  .point-a{fill:var(--accent); stroke:#0b1a15; stroke-width:1.5; cursor:pointer;}
+  .point-b{fill:var(--accent-2); stroke:#2a1508; stroke-width:1.5; cursor:pointer;}
+  .point-a:hover, .point-b:hover{opacity:.75;}
+  #modeSegment button[data-mode="addB"].active{background:var(--accent-2); color:#2a1508; border-color:var(--accent-2);}
+  #modeSegment button[data-mode="delete"].active{background:#c0392b; color:#fff; border-color:#c0392b;}
+
+  /* Network SVG */
+  #networkSvg{width:100%; height:290px; display:block;}
+  .neuron-label{fill:var(--dim); font-size:10px; font-family:var(--mono);}
+  .neuron-val{fill:var(--ink); font-size:10px; font-family:var(--mono); font-weight:600;}
+  .w-label{font-size:9px; font-family:var(--mono);}
+  .b-label{font-size:9px; font-family:var(--mono); fill:var(--yellow);}
+  .layer-title{fill:var(--dim); font-size:11px; font-family:var(--sans); font-weight:600;}
+
+  /* Matrix */
+  .matrices{display:flex; gap:22px; flex-wrap:wrap; align-items:flex-start;}
+  .matrix-pair{display:flex; align-items:center; gap:8px;}
+  .matrix-block .mlabel{font-size:11px; color:var(--dim); margin-bottom:6px; font-family:var(--mono);}
+  .matrix-grid{border-collapse:collapse;}
+  .matrix-grid td, .matrix-grid th{
+    padding:3px 6px; font-family:var(--mono); font-size:11px; text-align:center;
+    border:1px solid var(--line); min-width:40px;
+  }
+  .matrix-grid th{color:var(--dim); font-weight:400; border:none;}
+  .mcell{transition:background-color .25s, box-shadow .25s;}
+  .mcell.flash{box-shadow: inset 0 0 0 2px var(--yellow);}
+  .vec-grid td{
+    padding:3px 8px; font-family:var(--mono); font-size:11px; text-align:center;
+    border:1px solid var(--line); background:rgba(94,200,166,.08); color:var(--accent);
+  }
+  .cross-symbol{color:var(--dim); font-size:16px; font-family:var(--mono);}
+
+  /* Loss chart */
+  #lossSvg{width:100%; height:150px;}
+
+  /* Confusion matrix */
+  .confusion-grid{border-collapse:collapse; width:100%;}
+  .confusion-grid th, .confusion-grid td{
+    padding:8px 6px; text-align:center; font-family:var(--mono); font-size:12px;
+    border:1px solid var(--line);
+  }
+  .confusion-grid th{color:var(--dim); font-weight:500; font-size:10.5px; text-transform:uppercase; letter-spacing:.04em;}
+  .confusion-grid td.cm-tp, .confusion-grid td.cm-tn{background:rgba(94,200,166,.16); color:var(--accent); font-weight:600;}
+  .confusion-grid td.cm-fp, .confusion-grid td.cm-fn{background:rgba(232,146,92,.14); color:var(--accent-2); font-weight:600;}
+  .confusion-grid .corner{border:none;}
+  .confusion-grid .axis-label{color:var(--dim); font-size:10px; font-weight:400; text-transform:none;}
+
+  /* Info bar */
+  .info-grid{display:grid; grid-template-columns:repeat(2,1fr); gap:6px 16px; font-size:12px;}
+  .info-grid .k{color:var(--dim);}
+  .info-grid .v{font-family:var(--mono); color:var(--ink);}
+  #equationLine{
+    font-family:var(--mono); font-size:12.5px; color:var(--accent);
+    background:var(--panel-2); border-radius:6px; padding:8px 10px; margin-bottom:10px;
+    border:1px solid var(--line);
+    height:76px; line-height:1.45; overflow:hidden;
+    display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical;
+  }
+
+  @media (max-width: 880px){
+    .layout{grid-template-columns:1fr;}
+  }
+</style>
+</head>
+<body>
+
+<h1>MLP Backpropagation Simulator</h1>
+<div class="subtitle">2 inputs → 3 hidden → 3 hidden → 2 outputs (2D one-hot classifier: Class A / Class B)</div>
+
+<div class="layout">
+  <div class="main-col">
+
+    <div class="panel">
+      <h2>Controls</h2>
+      <div class="controls-row" style="margin-bottom:10px;">
+        <button id="btnStepBack">◀ Step Back</button>
+        <button id="btnStepFwd" class="primary">Step Forward ▶</button>
+        <button id="btnPlay">▶ Play</button>
+        <button id="btnAutoFit" class="primary">⚡ Train to Fit</button>
+        <button id="btnReset">⟲ Reset</button>
+        <button id="btnRandom" class="warn">🎲 Randomize Weights &amp; Bias</button>
+        <span class="phase-tag fwd" id="phaseTag">FORWARD</span>
+      </div>
+      <div class="controls-row" style="margin-bottom:10px;">
+        <span id="autoFitStatus" style="font-size:11.5px; color:var(--dim); font-family:var(--mono);"></span>
+      </div>
+      <div class="controls-row">
+        <div class="field">
+          <label>Activation function</label>
+          <select id="activationSelect">
+            <option value="sigmoid">Sigmoid</option>
+            <option value="tanh">Tanh</option>
+            <option value="relu">ReLU</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Loss function</label>
+          <select id="lossSelect">
+            <option value="logloss" selected>Log Loss (BCE)</option>
+            <option value="mse">MSE</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Learning rate: <span class="val" id="lrVal">0.40</span></label>
+          <input type="range" id="lrSlider" min="0.01" max="1" step="0.01" value="0.4">
+        </div>
+        <div class="field">
+          <label>Run speed: <span class="val" id="speedVal">Normal</span></label>
+          <input type="range" id="speedSlider" min="1" max="6" step="1" value="3">
+        </div>
+        <div class="field">
+          <label>Mini-batch size</label>
+          <div class="segmented" id="batchSegment">
+            <button data-val="1" class="active">1</button>
+            <button data-val="5">5</button>
+            <button data-val="10">10</button>
+            <button data-val="all">All</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="dual-pane-row">
+      <div class="panel pane-half">
+        <h2>Dataset <span class="note">— click to place points; scroll to zoom</span></h2>
+        <div class="controls-row" style="margin-bottom:10px;">
+          <div class="segmented" id="modeSegment">
+            <button data-mode="addA" class="active">＋ Class A</button>
+            <button data-mode="addB">＋ Class B</button>
+            <button data-mode="delete">🗑 Delete</button>
+          </div>
+        </div>
+        <div class="controls-row" style="margin-bottom:10px;">
+          <select id="patternSelect">
+            <option value="clusters">🎲 Two Clusters</option>
+            <option value="xor">🧩 XOR</option>
+            <option value="circles">⭕ Circles (nested)</option>
+            <option value="moons">🌙 Two Moons</option>
+            <option value="spiral">🌀 Spiral</option>
+            <option value="checkerboard">🏁 Checkerboard</option>
+          </select>
+          <button id="btnLoadPattern">Generate</button>
+          <button id="btnResetZoom2D">🔍 Reset zoom</button>
+          <label style="display:flex; align-items:center; gap:6px; font-size:12.5px; color:var(--dim);">
+            <input type="checkbox" id="chkBoundary" checked style="accent-color:var(--accent);">
+            Show boundary
+          </label>
+          <span style="font-size:12px; color:var(--dim); font-family:var(--mono);" id="pointCount">0 points</span>
+        </div>
+        <svg id="scatterSvg" viewBox="0 0 400 400" style="width:100%; max-width:420px; height:auto; display:block; cursor:crosshair;"></svg>
+        <div style="display:flex; gap:16px; margin-top:8px; font-size:11.5px; color:var(--dim);">
+          <span>● <span style="color:var(--accent);">Class A</span></span>
+          <span>▲ <span style="color:var(--accent-2);">Class B</span></span>
+        </div>
+      </div>
+
+      <div class="panel pane-half">
+        <h2>3D Classifier View <span class="note">— drag to rotate, scroll to zoom</span></h2>
+        <div class="controls-row" style="margin-bottom:10px;">
+          <button id="btnResetView3D">🎥 Reset view</button>
+          <span style="font-size:11.5px; color:var(--dim);">z-axis: predicted P(Class A) — points sit at their true class (A=1, B=0)</span>
+        </div>
+        <canvas id="scene3d" width="400" height="400" style="width:100%; max-width:420px; height:auto; display:block; background:var(--panel-2); border-radius:8px; cursor:grab; touch-action:none;"></canvas>
+        <div style="display:flex; gap:16px; margin-top:8px; font-size:11.5px; color:var(--dim);">
+          <span>● <span style="color:var(--accent);">Class A (z=1)</span></span>
+          <span>▲ <span style="color:var(--accent-2);">Class B (z=0)</span></span>
+          <span>▦ surface = model's P(Class A)</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Network Architecture</h2>
+      <div class="controls-row">
+        <div class="field">
+          <label style="display:flex; align-items:center; gap:6px; cursor:pointer; margin-bottom:2px;">
+            <input type="checkbox" id="chkHidden1" checked style="accent-color:var(--accent);">
+            Hidden 1: <span class="val" id="hidden1SizeVal">3</span> nodes
+          </label>
+          <input type="range" id="hidden1SizeSlider" min="2" max="8" step="1" value="3">
+        </div>
+        <div class="field">
+          <label style="display:flex; align-items:center; gap:6px; cursor:pointer; margin-bottom:2px;">
+            <input type="checkbox" id="chkHidden2" checked style="accent-color:var(--accent);">
+            Hidden 2: <span class="val" id="hidden2SizeVal">3</span> nodes
+          </label>
+          <input type="range" id="hidden2SizeSlider" min="2" max="8" step="1" value="3">
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Network Graph</h2>
+      <svg id="networkSvg" viewBox="0 0 680 290"></svg>
+    </div>
+
+    <div class="panel">
+      <h2>Weight &amp; Bias Matrices <span class="note">— input vector × weights = output vector, for each layer</span></h2>
+      <div class="matrices" id="matricesWrap"></div>
+    </div>
+
+  </div>
+
+  <div class="side-col">
+    <div class="panel">
+      <h2>Current Step</h2>
+      <div id="equationLine">—</div>
+      <div class="info-grid">
+        <div class="k">Predicted</div><div class="v" id="predVal">—</div>
+        <div class="k">Loss</div><div class="v" id="lossVal">—</div>
+        <div class="k">Epoch</div><div class="v" id="epochVal">0</div>
+        <div class="k">Sample (row)</div><div class="v" id="sampleVal">1 / 4</div>
+        <div class="k">Batch</div><div class="v" id="batchVal">—</div>
+        <div class="k">Step</div><div class="v" id="stepVal">0 / 0</div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Loss over time <span class="note">— average loss per epoch, live</span></h2>
+      <div id="lossReadout" style="font-family:var(--mono); font-size:22px; color:var(--accent); margin-bottom:4px;">—</div>
+      <svg id="lossSvg" viewBox="0 0 320 180"></svg>
+    </div>
+
+    <div class="panel">
+      <h2>Confusion Matrix <span class="note">— evaluated on all 4 rows, current weights</span></h2>
+      <div id="confusionWrap"></div>
+      <div class="info-grid" style="margin-top:12px;">
+        <div class="k">Accuracy</div><div class="v" id="accVal">—</div>
+        <div class="k">Precision</div><div class="v" id="precVal">—</div>
+        <div class="k">Recall</div><div class="v" id="recVal">—</div>
+        <div class="k">F1 score</div><div class="v" id="f1Val">—</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<svg id="linkOverlay" style="position:fixed; top:0; left:0; width:100vw; height:100vh; pointer-events:none; z-index:9999;"></svg>
+
+<div class="credit">Credit by SAIG lab from CE-KMITL · Powered by Claude · <a href="https://github.com/LLM-CE-KMITL/learning" target="_blank">github.com/LLM-CE-KMITL/learning</a></div>
+
+<script>
+(function(){
+
+/* ---------------- State ---------------- */
+const state = {
+  arch: [2,3,3,2],
+  hiddenEnabled: [true, true], // toggle each hidden layer on/off independently
+  hiddenSizes: [3, 3],         // independent node count per hidden layer
+  W: [], b: [],
+  dataset: [
+    {x1:0.20, x2:0.78, y:1}, {x1:0.30, x2:0.68, y:1}, {x1:0.15, x2:0.60, y:1},
+    {x1:0.35, x2:0.82, y:1}, {x1:0.25, x2:0.55, y:1},
+    {x1:0.80, x2:0.22, y:0}, {x1:0.70, x2:0.32, y:0}, {x1:0.85, x2:0.18, y:0},
+    {x1:0.65, x2:0.38, y:0}, {x1:0.75, x2:0.28, y:0}
+  ],
+  sampleIdx: 0,
+  batchSize: 1,      // 1, 5, 10, or 'all' — default 1 (SGD) converges most reliably on small toy datasets
+  batchStart: 0,
+  currentBatchIndices: [],
+  mode: 'addA',           // 'addA' | 'addB' | 'delete'
+  showBoundary: true,
+  scatterView: {x:0, y:0, w:400, h:400}, // current viewBox window into the fixed 400x400 domain space (for zoom)
+  view3D: {yaw:0.7, pitch:0.55, zoom:1},
+  batchAccumGradW: null,
+  batchAccumGradB: null,
+  batchAccumCount: 0,
+  epochLossSum: 0,
+  epochLossCount: 0,
+  activation: 'sigmoid',
+  loss: 'logloss',
+  lr: 0.4,
+  speed: 3,
+  phase: 'forward', // 'forward' | 'backward'
+  epoch: 0,
+  stepIdx: 0,
+  playing: false,
+  playTimer: null,
+  autoFitting: false,
+  // per-forward-pass caches
+  z: [], a: [],
+  delta: [],
+  gradW: [], gradB: [],
+  steps: [],
+  lossHistory: []
+};
+
+function randRange(a,b){ return a + Math.random()*(b-a); }
+
+function computeArch(){
+  const hiddens = [];
+  if(state.hiddenEnabled[0]) hiddens.push(state.hiddenSizes[0]);
+  if(state.hiddenEnabled[1]) hiddens.push(state.hiddenSizes[1]);
+  return [2, ...hiddens, 2];
+}
+
+function rebuildArchitecture(){
+  state.arch = computeArch();
+  initWeights();
+  resetTraining();
+}
+
+function initWeights(){
+  state.W = [];
+  state.b = [];
+  for(let l=1; l<state.arch.length; l++){
+    const rows = state.arch[l], cols = state.arch[l-1];
+    const limit = Math.sqrt(6/(rows+cols)); // Glorot/Xavier uniform — keeps activations from saturating early
+    const Wl = [];
+    for(let i=0;i<rows;i++){
+      const row=[];
+      for(let j=0;j<cols;j++) row.push(randRange(-limit,limit));
+      Wl.push(row);
+    }
+    state.W.push(Wl);
+    const bl = [];
+    for(let i=0;i<rows;i++) bl.push(0);
+    state.b.push(bl);
+  }
+}
+initWeights();
+
+function zeroLikeW(){ return state.W.map(layer => layer.map(row => row.map(_=>0))); }
+function zeroLikeB(){ return state.b.map(layer => layer.map(_=>0)); }
+function getBatchSizeNum(){
+  if(state.batchSize === 'all') return state.dataset.length;
+  return Math.min(state.batchSize, state.dataset.length);
+}
+
+/* ---------------- Activation functions ---------------- */
+function actF(x){
+  switch(state.activation){
+    case 'sigmoid': return 1/(1+Math.exp(-x));
+    case 'tanh': return Math.tanh(x);
+    case 'relu': return Math.max(0,x);
+  }
+}
+function actFPrime(x, y){
+  switch(state.activation){
+    case 'sigmoid': return y*(1-y);
+    case 'tanh': return 1 - y*y;
+    case 'relu': return x > 0 ? 1 : 0;
+  }
+}
+function outAct(x){ return 1/(1+Math.exp(-x)); }
+function outActPrime(x,y){ return y*(1-y); }
+
+/* ---------------- Forward / Backward computation ---------------- */
+function getActiveSample(idx){
+  const i = (idx !== undefined) ? idx : state.sampleIdx;
+  const row = state.dataset[i] || state.dataset[0];
+  return { x: [row.x1, row.x2], y: row.y };
+}
+
+function toOneHot(y){ return y === 1 ? [1,0] : [0,1]; } // Class A -> [1,0], Class B -> [0,1]
+
+function forwardPass(idx){
+  const sampleIdx = (idx !== undefined) ? idx : state.sampleIdx;
+  const {x, y} = getActiveSample(sampleIdx);
+  const activations = [x.slice()];
+  const zs = [];
+  for(let l=0; l<state.W.length; l++){
+    const Wl = state.W[l], bl = state.b[l];
+    const prevA = activations[activations.length-1];
+    const zl = [], al = [];
+    const isOutput = (l === state.W.length-1);
+    for(let i=0;i<Wl.length;i++){
+      let sum = bl[i];
+      for(let j=0;j<Wl[i].length;j++) sum += Wl[i][j]*prevA[j];
+      zl.push(sum);
+      al.push(isOutput ? outAct(sum) : actF(sum));
+    }
+    zs.push(zl);
+    activations.push(al);
+  }
+  state.z = zs;
+  state.a = activations;
+  return { pred: activations[activations.length-1], y }; // pred is now a vector, e.g. [pA, pB]
+}
+
+function computeLoss(predVec, yVec){
+  let s = 0;
+  const eps = 1e-9;
+  for(let k=0;k<predVec.length;k++){
+    if(state.loss === 'mse'){
+      s += 0.5*(predVec[k]-yVec[k])*(predVec[k]-yVec[k]);
+    } else {
+      s += -( yVec[k]*Math.log(predVec[k]+eps) + (1-yVec[k])*Math.log(1-predVec[k]+eps) );
+    }
+  }
+  return s;
+}
+
+function backwardPass(idx){
+  const sampleIdx = (idx !== undefined) ? idx : state.sampleIdx;
+  const L = state.W.length;
+  const {y} = getActiveSample(sampleIdx);
+  const yVec = toOneHot(y);
+  const deltas = new Array(L);
+  const gradW = new Array(L);
+  const gradB = new Array(L);
+
+  const aOutVec = state.a[L];
+  const zOutVec = state.z[L-1];
+  const deltaOut = aOutVec.map((aOutK, k)=>{
+    let dLdA;
+    const eps = 1e-9;
+    if(state.loss === 'mse'){
+      dLdA = (aOutK - yVec[k]);
+    } else {
+      dLdA = -(yVec[k]/(aOutK+eps)) + (1-yVec[k])/(1-aOutK+eps);
+    }
+    return dLdA * outActPrime(zOutVec[k], aOutK);
+  });
+  deltas[L-1] = deltaOut;
+
+  for(let l=L-2; l>=0; l--){
+    const nextW = state.W[l+1];
+    const nextDelta = deltas[l+1];
+    const zl = state.z[l];
+    const al = state.a[l+1];
+    const dl = [];
+    for(let i=0;i<zl.length;i++){
+      let sum = 0;
+      for(let k=0;k<nextW.length;k++) sum += nextW[k][i]*nextDelta[k];
+      dl.push(sum * actFPrime(zl[i], al[i]));
+    }
+    deltas[l] = dl;
+  }
+
+  for(let l=0; l<L; l++){
+    const prevA = state.a[l];
+    const dl = deltas[l];
+    const gW = dl.map(d => prevA.map(a => d*a));
+    const gB = dl.slice();
+    gradW[l] = gW;
+    gradB[l] = gB;
+  }
+
+  state.delta = deltas;
+  state.gradW = gradW;
+  state.gradB = gradB;
+}
+
+function applyBatchUpdate(){
+  const count = state.batchAccumCount || 1;
+  for(let l=0;l<state.W.length;l++){
+    for(let i=0;i<state.W[l].length;i++){
+      for(let j=0;j<state.W[l][i].length;j++){
+        state.W[l][i][j] -= state.lr * (state.batchAccumGradW[l][i][j]/count);
+      }
+      state.b[l][i] -= state.lr * (state.batchAccumGradB[l][i]/count);
+    }
+  }
+}
+
+/* Pure prediction pass over arbitrary input — does not touch state.z/state.a
+   (those are reserved for whatever sample is currently being displayed/stepped). */
+function predictOnly(x){
+  let a = x.slice();
+  for(let l=0;l<state.W.length;l++){
+    const Wl = state.W[l], bl = state.b[l];
+    const isOutput = (l === state.W.length-1);
+    const newA = [];
+    for(let i=0;i<Wl.length;i++){
+      let sum = bl[i];
+      for(let j=0;j<Wl[i].length;j++) sum += Wl[i][j]*a[j];
+      newA.push(isOutput ? outAct(sum) : actF(sum));
+    }
+    a = newA;
+  }
+  return a; // [probA, probB]
+}
+
+function computeConfusion(){
+  let tp=0, fp=0, fn=0, tn=0;
+  state.dataset.forEach(row=>{
+    const predVec = predictOnly([row.x1, row.x2]);
+    const pred = predVec[0] > predVec[1] ? 1 : 0; // argmax -> Class A (1) or Class B (0)
+    const actual = row.y;
+    if(pred===1 && actual===1) tp++;
+    else if(pred===1 && actual===0) fp++;
+    else if(pred===0 && actual===1) fn++;
+    else tn++;
+  });
+  const total = tp+fp+fn+tn || 1;
+  const accuracy = (tp+tn)/total;
+  const precision = (tp+fp)>0 ? tp/(tp+fp) : 0;
+  const recall = (tp+fn)>0 ? tp/(tp+fn) : 0;
+  const f1 = (precision+recall)>0 ? 2*precision*recall/(precision+recall) : 0;
+  return {tp,fp,fn,tn,accuracy,precision,recall,f1};
+}
+
+/* ---------------- Step sequencing (mini-batch aware) ---------------- */
+/* One batch group = the samples selected by current batch size, starting at batchStart.
+   Plan: for every sample in the batch -> forward layers + loss.
+         then for every sample in the batch -> backward layers.
+         then a single shared "update" step (gradient averaged across the batch). */
+function buildStepPlan(indices){
+  const nLayers = state.W.length;
+  const steps = [];
+  indices.forEach(idx=>{
+    for(let l=0;l<nLayers;l++) steps.push({phase:'forward', layer:l, sample:idx});
+    steps.push({kind:'loss', sample:idx});
+  });
+  indices.forEach(idx=>{
+    for(let l=nLayers-1;l>=0;l--) steps.push({phase:'backward', layer:l, sample:idx});
+  });
+  steps.push({kind:'update'});
+  return steps;
+}
+
+let currentPred = null, currentLoss = null;
+
+function forwardPassInit(){
+  const bsize = getBatchSizeNum();
+  const indices = [];
+  for(let i=0;i<bsize;i++) indices.push((state.batchStart+i) % state.dataset.length);
+  state.currentBatchIndices = indices;
+  state.steps = buildStepPlan(indices);
+  state.stepIdx = 0;
+  state.phase = 'forward';
+  state.batchAccumGradW = zeroLikeW();
+  state.batchAccumGradB = zeroLikeB();
+  state.batchAccumCount = 0;
+  state.sampleIdx = indices[0];
+  forwardPass(state.sampleIdx);
+}
+
+function stepOnce(){
+  if(!state.steps || state.steps.length === 0) forwardPassInit();
+  if(state.stepIdx >= state.steps.length) forwardPassInit();
+  const step = state.steps[state.stepIdx];
+  executeStep(step);
+  state.stepIdx++;
+}
+
+function runStep(){
+  stepOnce();
+  render();
+}
+
+function executeStep(step){
+  const nLayers = state.W.length;
+  if(step.phase === 'forward' && step.kind !== 'loss'){
+    state.sampleIdx = step.sample;
+    if(step.layer === 0) forwardPass(step.sample);
+    state.phase = 'forward';
+    updateEquation(`Forward — sample #${step.sample+1}, Layer ${step.layer+1}: z = W·a + b, a = f(z)`);
+  } else if(step.kind === 'loss'){
+    state.sampleIdx = step.sample;
+    const {pred,y} = forwardPass(step.sample);
+    currentPred = pred; currentLoss = computeLoss(pred, toOneHot(y));
+    state.phase = 'forward';
+    const lossName = state.loss === 'mse' ? 'MSE = ½(a−y)²' : 'LogLoss = −[y·log(a)+(1−y)·log(1−a)]';
+    updateEquation(`Compute loss — sample #${step.sample+1}: ${lossName} = ${currentLoss.toFixed(4)}`);
+    state.epochLossSum += currentLoss;
+    state.epochLossCount++;
+  } else if(step.phase === 'backward' && step.kind !== 'update'){
+    state.sampleIdx = step.sample;
+    if(step.layer === nLayers-1){
+      forwardPass(step.sample);   // ensure z/a correspond to this sample
+      backwardPass(step.sample);
+      for(let l=0;l<nLayers;l++){
+        for(let i=0;i<state.gradW[l].length;i++){
+          for(let j=0;j<state.gradW[l][i].length;j++) state.batchAccumGradW[l][i][j] += state.gradW[l][i][j];
+          state.batchAccumGradB[l][i] += state.gradB[l][i];
+        }
+      }
+      state.batchAccumCount++;
+    }
+    state.phase = 'backward';
+    const isOutLayer = step.layer === nLayers-1;
+    updateEquation(isOutLayer
+      ? `Backward — sample #${step.sample+1}, Output: δ = (a−y)·f'(z)`
+      : `Backward — sample #${step.sample+1}, Layer ${step.layer+1}: δ = (Wᵀ·δ_next)·f'(z)`);
+  } else if(step.kind === 'update'){
+    applyBatchUpdate();
+    state.phase = 'backward';
+    const n = state.batchAccumCount;
+    updateEquation(`Update — average gradient over ${n} sample${n>1?'s':''} in batch: w ← w − lr·mean(∂L/∂w)`);
+    const bsize = state.currentBatchIndices.length;
+    const newStart = (state.batchStart + bsize) % state.dataset.length;
+    if(newStart === 0){
+      // epoch complete — finalize one plotted point: average loss across the whole epoch
+      if(state.epochLossCount > 0){
+        state.lossHistory.push(state.epochLossSum / state.epochLossCount);
+      }
+      state.epochLossSum = 0;
+      state.epochLossCount = 0;
+      state.epoch++;
+    }
+    state.batchStart = newStart;
+  }
+}
+
+function updateEquation(text){
+  document.getElementById('equationLine').textContent = text;
+}
+
+/* ---------------- Rendering ---------------- */
+function fmt(n){ return (Math.round(n*1000)/1000).toFixed(3); }
+
+function colorForWeight(w){
+  const mag = Math.min(Math.abs(w)/1.2, 1);
+  const alpha = 0.15 + mag*0.65;
+  return w >= 0 ? `rgba(224,87,79,${alpha})` : `rgba(74,127,214,${alpha})`;
+}
+
+const SCATTER_W = 400, SCATTER_H = 400, SCATTER_PAD = 30;
+function domainToPx(x1, x2){
+  return {
+    x: SCATTER_PAD + x1 * (SCATTER_W - 2*SCATTER_PAD),
+    y: (SCATTER_H - SCATTER_PAD) - x2 * (SCATTER_H - 2*SCATTER_PAD)
+  };
+}
+function pxToDomain(px, py){
+  return {
+    x1: (px - SCATTER_PAD) / (SCATTER_W - 2*SCATTER_PAD),
+    x2: ((SCATTER_H - SCATTER_PAD) - py) / (SCATTER_H - 2*SCATTER_PAD)
+  };
+}
+
+function renderScatterPlot(){
+  const svg = document.getElementById('scatterSvg');
+  svg.innerHTML = '';
+  const v = state.scatterView;
+  svg.setAttribute('viewBox', `${v.x} ${v.y} ${v.w} ${v.h}`);
+
+  // grid + axes
+  [0, 0.25, 0.5, 0.75, 1].forEach(t=>{
+    const gx = SCATTER_PAD + t*(SCATTER_W-2*SCATTER_PAD);
+    const gy = (SCATTER_H-SCATTER_PAD) - t*(SCATTER_H-2*SCATTER_PAD);
+    svg.appendChild(svgEl('line',{x1:gx,y1:SCATTER_PAD,x2:gx,y2:SCATTER_H-SCATTER_PAD, class:'scatter-grid'}));
+    svg.appendChild(svgEl('line',{x1:SCATTER_PAD,y1:gy,x2:SCATTER_W-SCATTER_PAD,y2:gy, class:'scatter-grid'}));
+    const tickX = svgEl('text',{x:gx, y:SCATTER_H-SCATTER_PAD+14, 'text-anchor':'middle', class:'scatter-tick'});
+    tickX.textContent = t.toFixed(2);
+    svg.appendChild(tickX);
+    const tickY = svgEl('text',{x:SCATTER_PAD-6, y:gy+3, 'text-anchor':'end', class:'scatter-tick'});
+    tickY.textContent = t.toFixed(2);
+    svg.appendChild(tickY);
+  });
+  svg.appendChild(svgEl('line',{x1:SCATTER_PAD,y1:SCATTER_PAD,x2:SCATTER_PAD,y2:SCATTER_H-SCATTER_PAD, class:'scatter-axis'}));
+  svg.appendChild(svgEl('line',{x1:SCATTER_PAD,y1:SCATTER_H-SCATTER_PAD,x2:SCATTER_W-SCATTER_PAD,y2:SCATTER_H-SCATTER_PAD, class:'scatter-axis'}));
+  const xLabel = svgEl('text',{x:SCATTER_W/2, y:SCATTER_H-4, 'text-anchor':'middle', class:'scatter-tick'}); xLabel.textContent='x1';
+  svg.appendChild(xLabel);
+  const yLabel = svgEl('text',{x:10, y:SCATTER_H/2, 'text-anchor':'middle', class:'scatter-tick', transform:`rotate(-90 10 ${SCATTER_H/2})`}); yLabel.textContent='x2';
+  svg.appendChild(yLabel);
+
+  // decision boundary heatmap
+  if(state.showBoundary){
+    const res = 26;
+    const cellW = (SCATTER_W-2*SCATTER_PAD)/res, cellH = (SCATTER_H-2*SCATTER_PAD)/res;
+    for(let ix=0; ix<res; ix++){
+      for(let iy=0; iy<res; iy++){
+        const x1 = (ix+0.5)/res, x2 = (iy+0.5)/res;
+        const predVec = predictOnly([x1,x2]);
+        const margin = predVec[0] - predVec[1]; // >0 -> Class A, <0 -> Class B
+        const px = SCATTER_PAD + ix*cellW, py = (SCATTER_H-SCATTER_PAD) - (iy+1)*cellH;
+        const alpha = 0.10 + Math.min(Math.abs(margin),1)*0.28;
+        const color = margin >= 0 ? `rgba(94,200,166,${alpha})` : `rgba(232,146,92,${alpha})`;
+        svg.appendChild(svgEl('rect',{x:px,y:py,width:cellW+0.5,height:cellH+0.5, fill:color, stroke:'none'}));
+      }
+    }
+  }
+
+  // data points
+  state.dataset.forEach((row, idx)=>{
+    const {x,y} = domainToPx(row.x1, row.x2);
+    const isActive = idx === state.sampleIdx;
+    const inBatch = state.currentBatchIndices.includes(idx);
+    let el;
+    if(row.y === 1){
+      el = svgEl('circle', {cx:x, cy:y, r: isActive?8:6, class:'point-a'});
+    } else {
+      const size = isActive?9:7;
+      el = svgEl('polygon', {points:`${x},${y-size} ${x-size},${y+size*0.8} ${x+size},${y+size*0.8}`, class:'point-b'});
+    }
+    if(isActive) el.setAttribute('stroke', 'var(--yellow)');
+    else if(inBatch) el.setAttribute('stroke-width', '2.5');
+    el.addEventListener('click', (e)=>{
+      e.stopPropagation();
+      if(state.mode === 'delete'){
+        if(state.dataset.length <= 1) return;
+        state.dataset.splice(idx,1);
+        resetTraining();
+      }
+    });
+    svg.appendChild(el);
+  });
+
+  document.getElementById('pointCount').textContent = `${state.dataset.length} points`;
+}
+
+function svgClientToUserPoint(svg, clientX, clientY){
+  const pt = svg.createSVGPoint();
+  pt.x = clientX; pt.y = clientY;
+  const ctm = svg.getScreenCTM();
+  if(!ctm) return {x:0,y:0};
+  const userPt = pt.matrixTransform(ctm.inverse());
+  return {x: userPt.x, y: userPt.y};
+}
+
+function setupScatterClickHandler(){
+  const svg = document.getElementById('scatterSvg');
+  svg.addEventListener('click', (e)=>{
+    if(state.mode === 'delete') return; // handled per-point above
+    const {x:px, y:py} = svgClientToUserPoint(svg, e.clientX, e.clientY);
+    const {x1, x2} = pxToDomain(px, py);
+    if(x1 < 0 || x1 > 1 || x2 < 0 || x2 > 1) return;
+    const y = state.mode === 'addA' ? 1 : 0;
+    state.dataset.push({x1: Math.round(x1*100)/100, x2: Math.round(x2*100)/100, y});
+    resetTraining();
+  });
+  svg.addEventListener('wheel', (e)=>{
+    e.preventDefault();
+    const v = state.scatterView;
+    const {x:ux, y:uy} = svgClientToUserPoint(svg, e.clientX, e.clientY);
+    const factor = e.deltaY < 0 ? 0.88 : 1.14;
+    const newW = Math.max(60, Math.min(400, v.w * factor));
+    const newH = Math.max(60, Math.min(400, v.h * factor));
+    // keep the point under the cursor fixed while zooming
+    v.x = ux - (ux - v.x) * (newW / v.w);
+    v.y = uy - (uy - v.y) * (newH / v.h);
+    v.w = newW; v.h = newH;
+    renderScatterPlot();
+  }, {passive:false});
+}
+
+function resetScatterZoom(){
+  state.scatterView = {x:0, y:0, w:400, h:400};
+  renderScatterPlot();
+}
+
+/* ---------------- 3D Classifier View ---------------- */
+function project3D(x, y, z, view, cx, cy, scaleBase){
+  // center domain [0,1] around 0 for rotation
+  let px = x - 0.5, py = y - 0.5, pz = z - 0.5;
+  const cosY = Math.cos(view.yaw), sinY = Math.sin(view.yaw);
+  let x1 = px*cosY - pz*sinY;
+  let z1 = px*sinY + pz*cosY;
+  const cosX = Math.cos(view.pitch), sinX = Math.sin(view.pitch);
+  let y1 = py*cosX - z1*sinX;
+  let z2 = py*sinX + z1*cosX;
+  const scale = scaleBase * view.zoom;
+  return { sx: cx + x1*scale, sy: cy - y1*scale, depth: z2 };
+}
+
+function draw3D(){
+  const canvas = document.getElementById('scene3d');
+  if(!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0,0,W,H);
+  const cx = W/2, cy = H/2 + 10, scaleBase = Math.min(W,H)*0.62;
+  const view = state.view3D;
+
+  // axes (0->1 cube edges through x1,x2,z)
+  const axisColor = '#3a4570';
+  function projP(x,y,z){ return project3D(x,y,z, view, cx, cy, scaleBase); }
+  const axes = [
+    [[0,0,0],[1,0,0]], [[0,0,0],[0,1,0]], [[0,0,0],[0,0,1]],
+    [[1,0,0],[1,1,0]], [[0,1,0],[1,1,0]], [[1,0,0],[1,0,1]],
+    [[0,1,0],[0,1,1]], [[1,1,0],[1,1,1]], [[0,0,1],[1,0,1]],
+    [[0,0,1],[0,1,1]], [[1,0,1],[1,1,1]], [[0,1,1],[1,1,1]]
+  ];
+  ctx.strokeStyle = axisColor; ctx.lineWidth = 1;
+  axes.forEach(([a,b])=>{
+    const pa = projP(...a), pb = projP(...b);
+    ctx.beginPath(); ctx.moveTo(pa.sx,pa.sy); ctx.lineTo(pb.sx,pb.sy); ctx.stroke();
+  });
+  // axis labels
+  ctx.font = '10px monospace'; ctx.fillStyle = '#8b93a7';
+  const lx1 = projP(1.08,0,0), lx2 = projP(0,1.08,0), lz = projP(0,0,1.12);
+  ctx.fillText('x1', lx1.sx-6, lx1.sy);
+  ctx.fillText('x2', lx2.sx-6, lx2.sy);
+  ctx.fillText('P(A)', lz.sx-10, lz.sy);
+
+  // build surface quads with depth for painter's algorithm
+  const res = 14;
+  const quads = [];
+  for(let ix=0; ix<res; ix++){
+    for(let iy=0; iy<res; iy++){
+      const x0=ix/res, x1v=(ix+1)/res, y0=iy/res, y1v=(iy+1)/res;
+      const z00 = predictOnly([x0,y0])[0];
+      const z10 = predictOnly([x1v,y0])[0];
+      const z11 = predictOnly([x1v,y1v])[0];
+      const z01 = predictOnly([x0,y1v])[0];
+      const p00=projP(x0,y0,z00), p10=projP(x1v,y0,z10), p11=projP(x1v,y1v,z11), p01=projP(x0,y1v,z01);
+      const avgDepth = (p00.depth+p10.depth+p11.depth+p01.depth)/4;
+      const avgZ = (z00+z10+z11+z01)/4;
+      quads.push({pts:[p00,p10,p11,p01], depth:avgDepth, z:avgZ});
+    }
+  }
+
+  // data points (projected, with depth)
+  const pts3d = state.dataset.map(row=>{
+    const p = projP(row.x1, row.x2, row.y);
+    return {p, cls: row.y};
+  });
+
+  // merge quads + points, sort back-to-front by depth, draw
+  const drawables = [
+    ...quads.map(q=>({type:'quad', obj:q, depth:q.depth})),
+    ...pts3d.map(pt=>({type:'point', obj:pt, depth:pt.p.depth}))
+  ];
+  drawables.sort((a,b)=> a.depth - b.depth);
+
+  drawables.forEach(d=>{
+    if(d.type === 'quad'){
+      const q = d.obj;
+      const alpha = 0.35 + Math.abs(q.z-0.5)*0.3;
+      const color = q.z >= 0.5 ? `rgba(94,200,166,${alpha})` : `rgba(232,146,92,${alpha})`;
+      ctx.beginPath();
+      ctx.moveTo(q.pts[0].sx, q.pts[0].sy);
+      for(let k=1;k<4;k++) ctx.lineTo(q.pts[k].sx, q.pts[k].sy);
+      ctx.closePath();
+      ctx.fillStyle = color;
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+      ctx.lineWidth = 0.5;
+      ctx.stroke();
+    } else {
+      const {p, cls} = d.obj;
+      const r = 5.5;
+      ctx.fillStyle = cls === 1 ? '#5ec8a6' : '#e8925c';
+      ctx.strokeStyle = '#0b1a15';
+      ctx.lineWidth = 1.2;
+      if(cls === 1){
+        ctx.beginPath(); ctx.arc(p.sx, p.sy, r, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+      } else {
+        ctx.beginPath();
+        ctx.moveTo(p.sx, p.sy-r); ctx.lineTo(p.sx-r, p.sy+r*0.8); ctx.lineTo(p.sx+r, p.sy+r*0.8);
+        ctx.closePath(); ctx.fill(); ctx.stroke();
+      }
+    }
+  });
+}
+
+function setup3DInteraction(){
+  const canvas = document.getElementById('scene3d');
+  if(!canvas) return;
+  let dragging = false, lastX = 0, lastY = 0;
+  canvas.addEventListener('mousedown', (e)=>{
+    dragging = true; lastX = e.clientX; lastY = e.clientY;
+    canvas.style.cursor = 'grabbing';
+  });
+  window.addEventListener('mousemove', (e)=>{
+    if(!dragging) return;
+    const dx = e.clientX - lastX, dy = e.clientY - lastY;
+    lastX = e.clientX; lastY = e.clientY;
+    state.view3D.yaw += dx * 0.008;
+    state.view3D.pitch = Math.max(-1.45, Math.min(1.45, state.view3D.pitch - dy * 0.008));
+    draw3D();
+  });
+  window.addEventListener('mouseup', ()=>{ dragging=false; canvas.style.cursor='grab'; });
+  canvas.addEventListener('wheel', (e)=>{
+    e.preventDefault();
+    const factor = e.deltaY < 0 ? 1.1 : 0.9;
+    state.view3D.zoom = Math.max(0.4, Math.min(3, state.view3D.zoom * factor));
+    draw3D();
+  }, {passive:false});
+  // basic touch support
+  canvas.addEventListener('touchstart', (e)=>{
+    if(e.touches.length===1){ dragging=true; lastX=e.touches[0].clientX; lastY=e.touches[0].clientY; }
+  }, {passive:true});
+  canvas.addEventListener('touchmove', (e)=>{
+    if(!dragging || e.touches.length!==1) return;
+    const dx = e.touches[0].clientX - lastX, dy = e.touches[0].clientY - lastY;
+    lastX = e.touches[0].clientX; lastY = e.touches[0].clientY;
+    state.view3D.yaw += dx * 0.008;
+    state.view3D.pitch = Math.max(-1.45, Math.min(1.45, state.view3D.pitch - dy * 0.008));
+    draw3D();
+  }, {passive:true});
+  canvas.addEventListener('touchend', ()=>{ dragging=false; }, {passive:true});
+}
+
+function resetView3D(){
+  state.view3D = {yaw:0.7, pitch:0.55, zoom:1};
+  draw3D();
+}
+
+function generateClusteredDataset(){
+  const pts = [];
+  const cA = {x1:0.2+Math.random()*0.15, x2:0.65+Math.random()*0.2};
+  const cB = {x1:0.65+Math.random()*0.2, x2:0.15+Math.random()*0.2};
+  for(let i=0;i<5;i++){
+    pts.push({x1: clamp01(cA.x1 + randRange(-0.15,0.15)), x2: clamp01(cA.x2 + randRange(-0.15,0.15)), y:1});
+  }
+  for(let i=0;i<5;i++){
+    pts.push({x1: clamp01(cB.x1 + randRange(-0.15,0.15)), x2: clamp01(cB.x2 + randRange(-0.15,0.15)), y:0});
+  }
+  return pts;
+}
+
+function generateXORDataset(){
+  // 4 corner clusters, diagonal pairs share a class -> not linearly separable, forces a curved/bent boundary
+  const pts = [];
+  const corners = [
+    {cx:0.2, cy:0.2, y:0}, {cx:0.8, cy:0.8, y:0},   // Class B: bottom-left & top-right
+    {cx:0.2, cy:0.8, y:1}, {cx:0.8, cy:0.2, y:1}    // Class A: top-left & bottom-right
+  ];
+  corners.forEach(c=>{
+    for(let i=0;i<3;i++){
+      pts.push({x1: clamp01(c.cx + randRange(-0.09,0.09)), x2: clamp01(c.cy + randRange(-0.09,0.09)), y:c.y});
+    }
+  });
+  return pts;
+}
+
+function generateCirclesDataset(){
+  // Class A clustered at the center, Class B in a ring around it — needs a closed decision boundary
+  const pts = [];
+  for(let i=0;i<10;i++){
+    const ang = Math.random()*Math.PI*2, r = Math.random()*0.14;
+    pts.push({x1: clamp01(0.5+Math.cos(ang)*r), x2: clamp01(0.5+Math.sin(ang)*r), y:1});
+  }
+  for(let i=0;i<10;i++){
+    const ang = Math.random()*Math.PI*2, r = 0.34+Math.random()*0.14;
+    pts.push({x1: clamp01(0.5+Math.cos(ang)*r), x2: clamp01(0.5+Math.sin(ang)*r), y:0});
+  }
+  return pts;
+}
+
+function generateMoonsDataset(){
+  // Two interleaved crescent shapes ("two moons") — a classic nonlinear benchmark pattern
+  const pts = [];
+  const n = 10;
+  for(let i=0;i<n;i++){
+    const t = Math.PI * i/(n-1);
+    const x1 = 0.5 + 0.32*Math.cos(t) + randRange(-0.03,0.03);
+    const x2 = 0.55 + 0.28*Math.sin(t) + randRange(-0.03,0.03);
+    pts.push({x1: clamp01(x1), x2: clamp01(x2), y:1});
+  }
+  for(let i=0;i<n;i++){
+    const t = Math.PI * i/(n-1);
+    const x1 = 0.5 - 0.32*Math.cos(t) + randRange(-0.03,0.03);
+    const x2 = 0.45 - 0.28*Math.sin(t) + randRange(-0.03,0.03);
+    pts.push({x1: clamp01(x1), x2: clamp01(x2), y:0});
+  }
+  return pts;
+}
+
+function generateSpiralDataset(){
+  // Two interleaved spiral arms — a hard pattern; may need more hidden nodes to fit well
+  const pts = [];
+  const n = 12, turns = 1.4;
+  for(let cls=0; cls<2; cls++){
+    for(let i=0;i<n;i++){
+      const r = 0.04 + 0.36*(i/(n-1));
+      const theta = turns*2*Math.PI*(i/(n-1)) + cls*Math.PI;
+      const x1 = 0.5 + r*Math.cos(theta) + randRange(-0.015,0.015);
+      const x2 = 0.5 + r*Math.sin(theta) + randRange(-0.015,0.015);
+      pts.push({x1: clamp01(x1), x2: clamp01(x2), y: cls===0?1:0});
+    }
+  }
+  return pts;
+}
+
+function generateCheckerboardDataset(){
+  // 3x3 grid of alternating classes — a generalized XOR, needs several hyperplanes to separate
+  const pts = [];
+  const gridN = 3;
+  for(let gx=0; gx<gridN; gx++){
+    for(let gy=0; gy<gridN; gy++){
+      const cls = (gx+gy)%2===0 ? 1 : 0;
+      const cx = (gx+0.5)/gridN, cy = (gy+0.5)/gridN;
+      for(let k=0;k<2;k++){
+        pts.push({x1: clamp01(cx+randRange(-0.09,0.09)), x2: clamp01(cy+randRange(-0.09,0.09)), y:cls});
+      }
+    }
+  }
+  return pts;
+}
+
+function clamp01(v){ return Math.max(0, Math.min(1, v)); }
+
+const NS = 'http://www.w3.org/2000/svg';
+function svgEl(tag, attrs){
+  const el = document.createElementNS(NS, tag);
+  for(const k in attrs) el.setAttribute(k, attrs[k]);
+  return el;
+}
+
+/* Hover linking: hovering a matrix cell highlights the matching edge/bias
+   in the Network Graph and draws a connecting line across the page. */
+function attachHoverLink(cellEl, targetId){
+  cellEl.style.cursor = 'crosshair';
+  cellEl.addEventListener('mouseenter', () => {
+    const targetEl = document.getElementById(targetId);
+    if(!targetEl) return;
+    cellEl.style.outline = '2px solid var(--yellow)';
+    cellEl.style.outlineOffset = '-1px';
+    if(targetEl.tagName === 'line'){
+      targetEl.setAttribute('stroke', 'var(--yellow)');
+      targetEl.setAttribute('stroke-width', Math.max(3, parseFloat(targetEl.getAttribute('data-orig-width')||2)+2));
+    } else {
+      targetEl.setAttribute('fill', 'var(--yellow)');
+      targetEl.style.fontWeight = 'bold';
+    }
+    drawOverlayLink(cellEl, targetEl);
+  });
+  cellEl.addEventListener('mouseleave', () => {
+    const targetEl = document.getElementById(targetId);
+    cellEl.style.outline = 'none';
+    if(targetEl){
+      if(targetEl.tagName === 'line'){
+        targetEl.setAttribute('stroke', targetEl.getAttribute('data-orig-stroke'));
+        targetEl.setAttribute('stroke-width', targetEl.getAttribute('data-orig-width'));
+      } else {
+        targetEl.setAttribute('fill', '');
+        targetEl.style.fontWeight = '';
+      }
+    }
+    clearOverlayLink();
+  });
+}
+
+function drawOverlayLink(cellEl, targetEl){
+  const overlay = document.getElementById('linkOverlay');
+  overlay.innerHTML = '';
+  const cRect = cellEl.getBoundingClientRect();
+  const tRect = targetEl.getBoundingClientRect();
+  const x1 = cRect.left + cRect.width/2, y1 = cRect.top + cRect.height/2;
+  const x2 = tRect.left + tRect.width/2, y2 = tRect.top + tRect.height/2;
+  overlay.appendChild(svgEl('line', {x1,y1,x2,y2, stroke:'var(--yellow)', 'stroke-width':1.8, 'stroke-dasharray':'6,4', opacity:'0.85'}));
+  overlay.appendChild(svgEl('circle', {cx:x1, cy:y1, r:4, fill:'var(--yellow)'}));
+  overlay.appendChild(svgEl('circle', {cx:x2, cy:y2, r:4, fill:'var(--yellow)'}));
+}
+function clearOverlayLink(){
+  const overlay = document.getElementById('linkOverlay');
+  if(overlay) overlay.innerHTML = '';
+}
+
+
+function renderNetwork(){
+  const svg = document.getElementById('networkSvg');
+  svg.innerHTML = '';
+  const W = 680, H = 290;
+  const nLayers = state.arch.length;
+  const marginX = 70;
+  const layerX = [];
+  for(let i=0;i<nLayers;i++){
+    layerX.push(nLayers === 1 ? W/2 : marginX + i*(W - 2*marginX)/(nLayers-1));
+  }
+  const layerNodes = state.arch;
+  const positions = [];
+  layerNodes.forEach((count, li) => {
+    const xs = layerX[li];
+    const gap = H / (count+1);
+    const pts = [];
+    for(let i=0;i<count;i++) pts.push({x:xs, y:gap*(i+1)});
+    positions.push(pts);
+  });
+
+  const titles = ['Input'];
+  for(let i=1;i<nLayers-1;i++) titles.push(`Hidden ${i}`);
+  titles.push('Output');
+  positions.forEach((pts,li)=>{
+    const t = svgEl('text',{x:pts[0].x, y:20, 'text-anchor':'middle', class:'layer-title'});
+    t.textContent = titles[li];
+    svg.appendChild(t);
+  });
+
+  for(let l=0; l<state.W.length; l++){
+    const fromPts = positions[l], toPts = positions[l+1];
+    const Wl = state.W[l];
+    for(let i=0;i<toPts.length;i++){
+      for(let j=0;j<fromPts.length;j++){
+        const w = Wl[i][j];
+        const x1=fromPts[j].x, y1=fromPts[j].y, x2=toPts[i].x, y2=toPts[i].y;
+        const strokeW = Math.max(1, Math.min(Math.abs(w)*3.5, 6));
+        const line = svgEl('line', {
+          id: `edge-${l}-${i}-${j}`,
+          x1,y1,x2,y2,
+          stroke: colorForWeight(w),
+          'stroke-width': strokeW,
+          'data-orig-stroke': colorForWeight(w),
+          'data-orig-width': strokeW
+        });
+        svg.appendChild(line);
+        const mx = x1 + (x2-x1)*0.32 + (i - (toPts.length-1)/2)*3;
+        const my = y1 + (y2-y1)*0.32 + (i - (toPts.length-1)/2)*10;
+        const lbl = svgEl('text', {x:mx, y:my, class:'w-label', fill:'#9aa4bb'});
+        lbl.textContent = 'w='+fmt(w);
+        svg.appendChild(lbl);
+      }
+    }
+    const bl = state.b[l];
+    toPts.forEach((p,i)=>{
+      const blabel = svgEl('text', {id:`bias-${l}-${i}`, x:p.x+14, y:p.y-16, class:'b-label'});
+      blabel.textContent = 'b='+fmt(bl[i]);
+      svg.appendChild(blabel);
+    });
+  }
+
+  const lastLi = positions.length-1;
+  positions.forEach((pts, li)=>{
+    pts.forEach((p,i)=>{
+      const fillColor = li===0 ? '#2a3350' : (li===lastLi ? '#3a2a20' : '#20304a');
+      const circle = svgEl('circle', {cx:p.x, cy:p.y, r:16, fill:fillColor, stroke: state.phase==='forward'? 'var(--accent)':'var(--accent-2)', 'stroke-width':1.5});
+      svg.appendChild(circle);
+      let valText = '';
+      if(state.a && state.a[li]) valText = fmt(state.a[li][i]);
+      const vt = svgEl('text', {x:p.x, y:p.y+4, 'text-anchor':'middle', class:'neuron-val'});
+      vt.textContent = valText;
+      svg.appendChild(vt);
+      const label = li===0 ? `x${i+1}` : (li===lastLi ? `ŷ${i+1}` : `h${li}.${i+1}`);
+      const lt = svgEl('text', {x:p.x, y:p.y+30, 'text-anchor':'middle', class:'neuron-label'});
+      lt.textContent = label;
+      svg.appendChild(lt);
+    });
+  });
+}
+
+function renderMatrices(){
+  clearOverlayLink();
+  const wrap = document.getElementById('matricesWrap');
+  wrap.innerHTML = '';
+  const names = ['x'];
+  for(let i=1;i<state.arch.length-1;i++) names.push(`h${i}`);
+  names.push('ŷ');
+  const shortLabel = (li,i) => li===0 ? `x${i+1}` : (li===state.arch.length-1 ? `ŷ${i+1}` : `h${li}.${i+1}`);
+  for(let l=0;l<state.W.length;l++){
+    const pair = document.createElement('div');
+    pair.className = 'matrix-pair';
+
+    // input/incoming activation vector for this layer
+    const vecBlock = document.createElement('div');
+    vecBlock.className = 'matrix-block';
+    const vecLabel = document.createElement('div');
+    vecLabel.className = 'mlabel';
+    vecLabel.textContent = `${names[l]} (sample #${state.sampleIdx+1})`;
+    vecBlock.appendChild(vecLabel);
+    const vecTable = document.createElement('table');
+    vecTable.className = 'vec-grid';
+    const incoming = (state.a && state.a[l]) ? state.a[l] : new Array(state.W[l][0].length).fill(0);
+    incoming.forEach((v,i)=>{
+      const tr = document.createElement('tr');
+      const td = document.createElement('td');
+      td.textContent = fmt(v);
+      tr.appendChild(td);
+      vecTable.appendChild(tr);
+    });
+    vecBlock.appendChild(vecTable);
+    pair.appendChild(vecBlock);
+
+    const cross = document.createElement('div');
+    cross.className = 'cross-symbol';
+    cross.textContent = '×';
+    pair.appendChild(cross);
+
+    const block = document.createElement('div');
+    block.className = 'matrix-block';
+    const label = document.createElement('div');
+    label.className = 'mlabel';
+    label.textContent = `W${l+1} (${names[l]} → ${names[l+1]})`;
+    block.appendChild(label);
+    const table = document.createElement('table');
+    table.className = 'matrix-grid';
+    const Wl = state.W[l], bl = state.b[l];
+    const cols = Wl[0].length;
+    const headRow = document.createElement('tr');
+    headRow.appendChild(document.createElement('th'));
+    for(let j=0;j<cols;j++){
+      const th = document.createElement('th');
+      th.textContent = shortLabel(l, j);
+      headRow.appendChild(th);
+    }
+    const thBias = document.createElement('th'); thBias.textContent='bias';
+    headRow.appendChild(thBias);
+    table.appendChild(headRow);
+    for(let i=0;i<Wl.length;i++){
+      const tr = document.createElement('tr');
+      const th = document.createElement('th');
+      th.textContent = shortLabel(l+1, i);
+      tr.appendChild(th);
+      for(let j=0;j<Wl[i].length;j++){
+        const td = document.createElement('td');
+        td.className = 'mcell';
+        td.style.background = colorForWeight(Wl[i][j]);
+        td.textContent = fmt(Wl[i][j]);
+        attachHoverLink(td, `edge-${l}-${i}-${j}`);
+        tr.appendChild(td);
+      }
+      const tdb = document.createElement('td');
+      tdb.className = 'mcell';
+      tdb.style.background = colorForWeight(bl[i]);
+      tdb.textContent = fmt(bl[i]);
+      attachHoverLink(tdb, `bias-${l}-${i}`);
+      tr.appendChild(tdb);
+      table.appendChild(tr);
+    }
+    block.appendChild(table);
+    pair.appendChild(block);
+
+    const equals = document.createElement('div');
+    equals.className = 'cross-symbol';
+    equals.textContent = '=';
+    pair.appendChild(equals);
+
+    const outBlock = document.createElement('div');
+    outBlock.className = 'matrix-block';
+    const outLabel = document.createElement('div');
+    outLabel.className = 'mlabel';
+    outLabel.textContent = `${names[l+1]} (output)`;
+    outBlock.appendChild(outLabel);
+    const outTable = document.createElement('table');
+    outTable.className = 'vec-grid';
+    const outgoing = (state.a && state.a[l+1]) ? state.a[l+1] : new Array(Wl.length).fill(0);
+    outgoing.forEach(v=>{
+      const tr = document.createElement('tr');
+      const td = document.createElement('td');
+      td.style.color = 'var(--accent-2)';
+      td.style.background = 'rgba(232,146,92,.10)';
+      td.textContent = fmt(v);
+      tr.appendChild(td);
+      outTable.appendChild(tr);
+    });
+    outBlock.appendChild(outTable);
+    pair.appendChild(outBlock);
+
+    wrap.appendChild(pair);
+  }
+}
+
+function flashAllMatrixCells(){
+  document.querySelectorAll('.mcell').forEach(c=>{
+    c.classList.add('flash');
+    setTimeout(()=>c.classList.remove('flash'), 350);
+  });
+}
+
+function renderLossChart(){
+  const svg = document.getElementById('lossSvg');
+  const readout = document.getElementById('lossReadout');
+  svg.innerHTML = '';
+  const W=320, H=180, padL=40, padR=14, padT=14, padB=28;
+  const plotW = W-padL-padR, plotH = H-padT-padB;
+
+  // live in-progress average for the epoch currently being stepped through
+  const livePoint = state.epochLossCount > 0 ? (state.epochLossSum/state.epochLossCount) : null;
+  const hist = state.lossHistory.slice(-59);
+  const fullSeries = livePoint !== null ? hist.concat([livePoint]) : hist;
+
+  const currentNum = livePoint !== null ? livePoint : (hist.length ? hist[hist.length-1] : null);
+  readout.textContent = currentNum !== null ? currentNum.toFixed(4) : '—';
+
+  if(fullSeries.length < 1){
+    const t = svgEl('text',{x:W/2,y:H/2,'text-anchor':'middle', fill:'#666', 'font-size':11});
+    t.textContent = 'Step through to see loss';
+    svg.appendChild(t);
+    return;
+  }
+
+  const maxL = Math.max(...fullSeries, 0.05) * 1.08;
+  const minL = 0;
+  const n = fullSeries.length;
+  const stepX = plotW / Math.max(n-1, 1);
+  const xOf = i => padL + i*stepX;
+  const yOf = v => padT + plotH - ((v-minL)/(maxL-minL||1))*plotH;
+
+  // horizontal gridlines + y labels (4 bands)
+  for(let k=0;k<=4;k++){
+    const v = maxL * k/4;
+    const gy = yOf(v);
+    svg.appendChild(svgEl('line',{x1:padL,y1:gy,x2:W-padR,y2:gy,stroke:'#232c46','stroke-width':1}));
+    const lbl = svgEl('text',{x:padL-6, y:gy+3, 'text-anchor':'end', fill:'#8b93a7','font-size':9,'font-family':'monospace'});
+    lbl.textContent = v.toFixed(2);
+    svg.appendChild(lbl);
+  }
+  // axes
+  svg.appendChild(svgEl('line',{x1:padL,y1:padT,x2:padL,y2:H-padB,stroke:'#3a4570'}));
+  svg.appendChild(svgEl('line',{x1:padL,y1:H-padB,x2:W-padR,y2:H-padB,stroke:'#3a4570'}));
+
+  // x-axis epoch tick labels: first, mid, last finalized epoch
+  const epochCount = hist.length;
+  if(epochCount > 0){
+    const tickIdxs = epochCount <= 2 ? [0, epochCount-1] : [0, Math.floor((epochCount-1)/2), epochCount-1];
+    [...new Set(tickIdxs)].forEach(i=>{
+      const tx = xOf(i);
+      const lbl = svgEl('text',{x:tx, y:H-padB+13, 'text-anchor':'middle', fill:'#8b93a7','font-size':9,'font-family':'monospace'});
+      lbl.textContent = 'ep'+(i+1);
+      svg.appendChild(lbl);
+    });
+  }
+  const xAxisTitle = svgEl('text',{x:W/2, y:H-2, 'text-anchor':'middle', fill:'#8b93a7','font-size':9});
+  xAxisTitle.textContent = 'Epoch →';
+  svg.appendChild(xAxisTitle);
+
+  // finalized (solid) line + point markers
+  if(hist.length > 0){
+    let d = '';
+    hist.forEach((v,i)=>{ d += (i===0?'M':'L') + xOf(i).toFixed(1)+','+yOf(v).toFixed(1)+' '; });
+    svg.appendChild(svgEl('path',{d, fill:'none', stroke:'var(--accent)', 'stroke-width':2.2, 'stroke-linejoin':'round'}));
+    hist.forEach((v,i)=>{
+      svg.appendChild(svgEl('circle',{cx:xOf(i), cy:yOf(v), r:2.6, fill:'var(--panel)', stroke:'var(--accent)', 'stroke-width':1.6}));
+    });
+  }
+
+  if(hist.length > 0){
+    const lx = xOf(hist.length-1), ly = yOf(hist[hist.length-1]);
+    const lbl = svgEl('text',{x:Math.min(lx+7,W-46), y:ly-7, fill:'var(--accent)', 'font-size':10, 'font-family':'monospace'});
+    lbl.textContent = hist[hist.length-1].toFixed(4);
+    svg.appendChild(lbl);
+  }
+}
+
+function renderInfo(){
+  document.getElementById('predVal').textContent = currentPred!==null
+    ? `[A:${fmt(currentPred[0])}, B:${fmt(currentPred[1])}] → ${currentPred[0]>currentPred[1]?'Class A':'Class B'}`
+    : '—';
+  document.getElementById('lossVal').textContent = currentLoss!==null ? fmt(currentLoss) : '—';
+  document.getElementById('epochVal').textContent = state.epoch;
+  document.getElementById('sampleVal').textContent = `${state.sampleIdx+1} / ${state.dataset.length}`;
+  const rows = state.currentBatchIndices.map(i=>i+1).join(', ');
+  document.getElementById('batchVal').textContent = `rows [${rows}]`;
+  const total = state.steps.length || 0;
+  document.getElementById('stepVal').textContent = `${state.stepIdx} / ${total}`;
+  const tag = document.getElementById('phaseTag');
+  tag.textContent = state.phase.toUpperCase();
+  tag.className = 'phase-tag ' + (state.phase==='forward' ? 'fwd':'bwd');
+}
+
+function renderConfusionMatrix(){
+  const c = computeConfusion();
+  const wrap = document.getElementById('confusionWrap');
+  wrap.innerHTML = `
+    <table class="confusion-grid">
+      <tr>
+        <td class="corner"></td>
+        <td class="corner"></td>
+        <th colspan="2">Predicted</th>
+      </tr>
+      <tr>
+        <td class="corner"></td>
+        <td class="corner"></td>
+        <th>Class A</th>
+        <th>Class B</th>
+      </tr>
+      <tr>
+        <th rowspan="2" style="writing-mode:vertical-rl; text-orientation:mixed;">Actual</th>
+        <th>Class A</th>
+        <td class="cm-tp">${c.tp}<br><span class="axis-label">TP</span></td>
+        <td class="cm-fn">${c.fn}<br><span class="axis-label">FN</span></td>
+      </tr>
+      <tr>
+        <th>Class B</th>
+        <td class="cm-fp">${c.fp}<br><span class="axis-label">FP</span></td>
+        <td class="cm-tn">${c.tn}<br><span class="axis-label">TN</span></td>
+      </tr>
+    </table>
+  `;
+  document.getElementById('accVal').textContent = (c.accuracy*100).toFixed(1) + '%';
+  document.getElementById('precVal').textContent = (c.precision*100).toFixed(1) + '%';
+  document.getElementById('recVal').textContent = (c.recall*100).toFixed(1) + '%';
+  document.getElementById('f1Val').textContent = c.f1.toFixed(3);
+}
+
+function render(){
+  renderScatterPlot();
+  renderNetwork();
+  renderMatrices();
+  renderLossChart();
+  renderConfusionMatrix();
+  renderInfo();
+  draw3D();
+}
+
+/* ---------------- Controls wiring ---------------- */
+document.getElementById('activationSelect').addEventListener('change', e=>{
+  state.activation = e.target.value;
+  resetTraining();
+});
+document.getElementById('lossSelect').addEventListener('change', e=>{
+  state.loss = e.target.value;
+  resetTraining();
+});
+document.getElementById('lrSlider').addEventListener('input', e=>{
+  state.lr = parseFloat(e.target.value);
+  document.getElementById('lrVal').textContent = state.lr.toFixed(2);
+});
+
+const speedLabels = {1:'Very slow',2:'Slow',3:'Normal',4:'Fast',5:'Very fast',6:'Instant'};
+const speedMs = {1:1600,2:1000,3:600,4:300,5:120,6:40};
+document.getElementById('speedSlider').addEventListener('input', e=>{
+  state.speed = parseInt(e.target.value);
+  document.getElementById('speedVal').textContent = speedLabels[state.speed];
+  if(state.playing) restartPlayTimer();
+});
+
+document.querySelectorAll('#batchSegment button').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('#batchSegment button').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    const v = btn.getAttribute('data-val');
+    state.batchSize = (v === 'all') ? 'all' : parseInt(v);
+    resetTraining();
+  });
+});
+
+document.getElementById('btnStepFwd').addEventListener('click', ()=>{ runStep(); });
+document.getElementById('btnStepBack').addEventListener('click', ()=>{
+  if(state.stepIdx>0){ state.stepIdx--; render(); }
+});
+document.getElementById('btnReset').addEventListener('click', ()=>{ resetTraining(); });
+document.getElementById('btnRandom').addEventListener('click', ()=>{
+  initWeights();
+  resetTraining();
+  flashAllMatrixCells();
+});
+const patternGenerators = {
+  clusters: generateClusteredDataset,
+  xor: generateXORDataset,
+  circles: generateCirclesDataset,
+  moons: generateMoonsDataset,
+  spiral: generateSpiralDataset,
+  checkerboard: generateCheckerboardDataset
+};
+document.getElementById('btnLoadPattern').addEventListener('click', ()=>{
+  const key = document.getElementById('patternSelect').value;
+  const gen = patternGenerators[key] || generateClusteredDataset;
+  state.dataset = gen();
+  resetTraining();
+});
+document.getElementById('btnResetZoom2D').addEventListener('click', ()=>{
+  resetScatterZoom();
+});
+document.querySelectorAll('#modeSegment button').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('#modeSegment button').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    state.mode = btn.getAttribute('data-mode');
+  });
+});
+document.getElementById('chkBoundary').addEventListener('change', e=>{
+  state.showBoundary = e.target.checked;
+  render();
+});
+setupScatterClickHandler();
+setup3DInteraction();
+document.getElementById('btnResetView3D').addEventListener('click', ()=>{ resetView3D(); });
+document.getElementById('chkHidden1').addEventListener('change', e=>{
+  state.hiddenEnabled[0] = e.target.checked;
+  if(!state.hiddenEnabled[0] && !state.hiddenEnabled[1]){
+    // don't allow disabling both — force at least one hidden layer
+    e.target.checked = true;
+    state.hiddenEnabled[0] = true;
+    return;
+  }
+  rebuildArchitecture();
+});
+document.getElementById('chkHidden2').addEventListener('change', e=>{
+  state.hiddenEnabled[1] = e.target.checked;
+  if(!state.hiddenEnabled[0] && !state.hiddenEnabled[1]){
+    e.target.checked = true;
+    state.hiddenEnabled[1] = true;
+    return;
+  }
+  rebuildArchitecture();
+});
+document.getElementById('hidden1SizeSlider').addEventListener('input', e=>{
+  state.hiddenSizes[0] = parseInt(e.target.value);
+  document.getElementById('hidden1SizeVal').textContent = state.hiddenSizes[0];
+  rebuildArchitecture();
+});
+document.getElementById('hidden2SizeSlider').addEventListener('input', e=>{
+  state.hiddenSizes[1] = parseInt(e.target.value);
+  document.getElementById('hidden2SizeVal').textContent = state.hiddenSizes[1];
+  rebuildArchitecture();
+});
+document.getElementById('btnPlay').addEventListener('click', function(){
+  state.playing = !state.playing;
+  this.textContent = state.playing ? '⏸ Pause' : '▶ Play';
+  if(!state.playing){
+    state.autoFitting = false;
+    document.getElementById('btnAutoFit').textContent = '⚡ Train to Fit';
+  }
+  if(state.playing) restartPlayTimer();
+  else clearInterval(state.playTimer);
+});
+function restartPlayTimer(){
+  clearInterval(state.playTimer);
+  state.playTimer = setInterval(()=>{ runStep(); }, speedMs[state.speed]);
+}
+
+document.getElementById('btnAutoFit').addEventListener('click', function(){
+  if(state.autoFitting){
+    stopAutoFit('Stopped manually.');
+    return;
+  }
+  state.autoFitting = true;
+  state.playing = true;
+  this.textContent = '⏹ Stop Fitting';
+  document.getElementById('btnPlay').textContent = '⏸ Pause';
+  document.getElementById('autoFitStatus').textContent =
+    `Training with batch size ${state.batchSize} — watch the 3D surface bend to fit the points...`;
+  clearInterval(state.playTimer);
+  state.fitRestartCount = 0;
+
+  const STEPS_PER_TICK = 60; // burst through many micro-steps per animation tick so epochs fly by
+  state.playTimer = setInterval(()=>{
+    for(let k=0; k<STEPS_PER_TICK; k++){
+      stepOnce();
+      if(!state.autoFitting) break;
+    }
+    render();
+    if(!state.autoFitting) return;
+
+    const acc = computeConfusion().accuracy;
+    if(acc >= 0.999 && state.epoch >= 8){ stopAutoFit(`Fit complete after ${state.epoch} epochs — accuracy 100%.`); return; }
+    if(state.epoch >= 2000){ stopAutoFit(`Stopped after ${state.epoch} epochs (limit reached) — accuracy ${(acc*100).toFixed(0)}%.`); return; }
+
+    // stuck-in-local-minimum detection: plateaued loss with poor accuracy -> reinitialize and retry.
+    // (Larger batch sizes are more prone to this on non-linearly-separable data — full-batch
+    // gradient descent can converge to a degenerate solution where all outputs settle near 0.5.)
+    if(state.epoch >= 100 && acc <= 0.55){
+      const h = state.lossHistory;
+      if(h.length >= 35){
+        const recent = h.slice(-20);
+        const spread = Math.max(...recent) - Math.min(...recent);
+        if(spread < 0.004){
+          state.fitRestartCount++;
+          if(state.fitRestartCount > 15){
+            stopAutoFit('Could not escape a local minimum after many restarts — try a smaller batch size or higher learning rate.');
+            return;
+          }
+          document.getElementById('autoFitStatus').textContent =
+            `Stuck in a local minimum — reinitializing weights and retrying (attempt ${state.fitRestartCount})...`;
+          restartWeightsForFit();
+        }
+      }
+    }
+  }, 20);
+});
+function restartWeightsForFit(){
+  initWeights();
+  state.epoch = 0;
+  state.batchStart = 0;
+  state.stepIdx = 0;
+  state.steps = [];
+  state.lossHistory = [];
+  state.epochLossSum = 0;
+  state.epochLossCount = 0;
+  forwardPassInit();
+}
+function stopAutoFit(message){
+  clearInterval(state.playTimer);
+  state.playing = false;
+  state.autoFitting = false;
+  document.getElementById('btnPlay').textContent = '▶ Play';
+  document.getElementById('btnAutoFit').textContent = '⚡ Train to Fit';
+  document.getElementById('autoFitStatus').textContent = message || '';
+}
+
+function resetTraining(){
+  clearInterval(state.playTimer);
+  state.playing = false;
+  state.autoFitting = false;
+  document.getElementById('btnPlay').textContent = '▶ Play';
+  const autoBtn = document.getElementById('btnAutoFit');
+  if(autoBtn) autoBtn.textContent = '⚡ Train to Fit';
+  const statusEl = document.getElementById('autoFitStatus');
+  if(statusEl) statusEl.textContent = '';
+  state.epoch = 0;
+  state.batchStart = 0;
+  state.stepIdx = 0;
+  state.steps = [];
+  state.lossHistory = [];
+  state.epochLossSum = 0;
+  state.epochLossCount = 0;
+  currentPred = null; currentLoss = null;
+  forwardPassInit();
+  updateEquation('Ready — press Step Forward to begin.');
+  render();
+}
+
+/* ---------------- Init ---------------- */
+resetTraining();
+
+})();
+</script>
+</body>
+</html>
