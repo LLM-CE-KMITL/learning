@@ -5,6 +5,7 @@ Welcome to the LLM Learning Hub, an interactive educational initiative designed 
 ## Machine Learning
 * Linear Regression https://llm-ce-kmitl.github.io/learning/ml-viz/linear.html
 * Multilayer Perceptron  https://llm-ce-kmitl.github.io/learning/ml-viz/mlp.html
+* Activation Functions https://llm-ce-kmitl.github.io/learning/ml-viz/activations.html
 ## Deep Learning
 * Seq2Seq https://llm-ce-kmitl.github.io/learning/seq2seq-viz/rnn.html
 ## Language Model
