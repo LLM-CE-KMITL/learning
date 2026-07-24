@@ -2,11 +2,10 @@
 
 ### Interactive Visualizations for Machine Learning, Deep Learning & Language Models
 
-[![AI Whisperer](https://img.shields.io/badge/AI%20Whisperer-Rathachai-blueviolet?style=for-the-badge)](https://rathachai.creatier.pro/)
-[![Made by SAIG Lab](https://img.shields.io/badge/Made%20by-SAIG%20Lab-blue?style=for-the-badge)](https://github.com/SAIG-KMITL)
-
-[![KMITL](https://img.shields.io/badge/KMITL-Computer%20Engineering-orange?style=for-the-badge)](https://www.kmitl.ac.th/)
-[![GitHub Pages](https://img.shields.io/badge/GitHub%20Pages-Live%20Demo-2ea44f?style=for-the-badge&logo=github)](https://llm-ce-kmitl.github.io/learning/)
+[![AI Whisperer](https://img.shields.io/badge/AI%20Whisperer-Rathachai-blueviolet?logo=deepl)](https://rathachai.creatier.pro/)
+[![Made by SAIG Lab](https://img.shields.io/badge/Lab-SAIG-blue?logo=devbox)](https://github.com/SAIG-KMITL)
+[![KMITL](https://img.shields.io/badge/KMITL-Computer%20Engineering-orange?logo=ce)](https://www.kmitl.ac.th/)
+[![GitHub Pages](https://img.shields.io/badge/gh-Live%20Demo-2ea44f?logo=github)](https://llm-ce-kmitl.github.io/learning/)
 
 *Turning complex AI architectures into real-time, interactive, click-and-play experiences.*
 
