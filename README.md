@@ -18,6 +18,9 @@ Welcome to the **LLM Learning Hub** — an interactive educational initiative de
 
 Developed by the **SAIG Lab** at **King Mongkut's Institute of Technology Ladkrabang (KMITL)**, these visualizers break down complex AI architectures into real-time, interactive demonstrations — so you can *see* what's happening under the hood, not just read about it.
 
+![Predict Screenshot](images/dl-predict.gif)
+
+
 ---
 
 ## Machine Learning
