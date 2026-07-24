@@ -1,0 +1,1157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RNN Visualizer</title>
+<style>
+:root{
+  --bg:#0b0e14; --panel:#11151f; --panel2:#161b28; --border:#232a3b;
+  --text:#cbd5e1; --text-dim:#7c8aa5; --grid:#1c2233;
+  --fwd:#4fd1c5; --fwd-dim:#1e5a56;
+  --bwd:#fb7185; --bwd-dim:#5a2530;
+  --amber:#f5c76b;
+  --mono: 'SF Mono', 'Consolas', 'Menlo', monospace;
+}
+*{box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{
+  margin:0; background:var(--bg); color:var(--text);
+  font-family:'Segoe UI', system-ui, sans-serif;
+  line-height:1.5;
+}
+h1,h2,h3{font-family:var(--mono); letter-spacing:0.5px; font-weight:600;}
+.topbar{
+  display:flex; flex-direction:column; gap:4px;
+  background:var(--bg);
+  border-bottom:1px solid var(--border); padding:18px 20px 16px;
+}
+.topbar .brand{font-family:var(--mono); font-size:20px; font-weight:700; color:var(--fwd); letter-spacing:1px;}
+.topbar .tagline{color:var(--text-dim); font-size:13px; max-width:760px; line-height:1.5;}
+.wrap{max-width:1180px; margin:0 auto; padding:0 20px;}
+section{padding:56px 0 40px;}
+.divider{height:1px; background:linear-gradient(90deg, transparent, var(--border), transparent); max-width:1180px; margin:0 auto;}
+.sec-head{display:flex; align-items:baseline; gap:12px; margin-bottom:6px;}
+.sec-num{
+  font-family:var(--mono); color:var(--bg); background:var(--fwd); font-weight:700;
+  width:30px; height:30px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:14px;
+}
+.sec-head h2{margin:0; font-size:20px;}
+.sec-sub{color:var(--text-dim); font-size:13.5px; margin:0 0 22px 42px; max-width:760px;}
+.panel{
+  background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:18px 20px;
+  margin-bottom:16px;
+}
+.grid2{display:grid; grid-template-columns:2fr 3fr; gap:16px;}
+@media(max-width:900px){.grid2{grid-template-columns:1fr;}}
+.row{display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-bottom:10px;}
+button{
+  font-family:var(--mono); background:var(--panel2); color:var(--text); border:1px solid var(--border);
+  padding:8px 14px; border-radius:7px; cursor:pointer; font-size:12.5px; transition:.15s;
+}
+button:hover:not(:disabled){border-color:var(--fwd); color:var(--fwd);}
+button:disabled{opacity:0.35; cursor:not-allowed;}
+button.primary{background:var(--fwd-dim); border-color:var(--fwd); color:var(--fwd);}
+button.danger{background:var(--bwd-dim); border-color:var(--bwd); color:var(--bwd);}
+.ctrl{display:flex; flex-direction:column; gap:4px; font-size:11.5px; color:var(--text-dim); font-family:var(--mono);}
+.zoom-toggle{
+  display:inline-flex; align-items:center; gap:6px; font-family:var(--mono); font-size:12.5px; color:var(--text-dim);
+  cursor:pointer; padding:8px 12px; border:1px solid var(--border); border-radius:7px; background:var(--panel2);
+}
+.zoom-toggle input{accent-color:var(--fwd); width:15px; height:15px; cursor:pointer;}
+.zoom-toggle:has(input:checked){color:var(--fwd); border-color:var(--fwd); background:rgba(79,209,197,0.08);}
+.ctrl input[type=range]{width:150px; accent-color:var(--fwd);}
+.ctrl select{background:var(--panel2); color:var(--text); border:1px solid var(--border); border-radius:5px; padding:5px; font-family:var(--mono); font-size:12px;}
+.ctrl .val{color:var(--text);}
+svg{display:block; width:100%; height:auto;}
+.chart-box{background:var(--panel2); border:1px solid var(--border); border-radius:8px; padding:8px;}
+#hiddenStrip{margin-bottom:6px; margin-left:auto; display:block; width:45%; min-width:260px; touch-action:none;}
+#inferChart{touch-action:none; cursor:crosshair;}
+#dataChart{touch-action:none;}
+.eq{
+  font-family:var(--mono); background:var(--panel2); border:1px solid var(--border); border-radius:8px;
+  padding:14px 16px; font-size:13.5px; margin-bottom:14px;
+}
+.eq div{margin:4px 0;}
+.fwd-term{color:var(--fwd); font-weight:600;}
+.bwd-term{color:var(--bwd); font-weight:600;}
+.phase-tag{
+  display:inline-block; font-family:var(--mono); font-size:11px; padding:3px 9px; border-radius:20px;
+  border:1px solid var(--border); color:var(--text-dim); margin-left:8px; transition:.2s;
+}
+.phase-tag.forward{color:var(--fwd); border-color:var(--fwd); background:rgba(79,209,197,.08);}
+.phase-tag.backward{color:var(--bwd); border-color:var(--bwd); background:rgba(251,113,133,.08);}
+.mats{display:flex; flex-wrap:wrap; gap:18px; margin-top:6px;}
+.mat-block{text-align:center;}
+.mat-label{font-family:var(--mono); font-size:12px; color:var(--text-dim); margin-bottom:5px;}
+.mat-grid{display:grid; gap:2px;}
+.cell{
+  width:52px; height:24px; border-radius:3px; font-size:9.5px; display:flex; align-items:center; justify-content:center;
+  color:rgba(255,255,255,0.85); transition:background-color .12s linear;
+}
+.legend{font-family:var(--mono); font-size:11px; color:var(--text-dim); display:flex; align-items:center; gap:8px; margin-top:8px;}
+.swatch{width:12px;height:12px;border-radius:3px;display:inline-block;}
+.hint{font-size:12.5px; color:var(--text-dim); background:var(--panel2); border-left:3px solid var(--amber); padding:8px 14px; border-radius:0 6px 6px 0; margin-top:8px;}
+.hint summary{cursor:pointer; color:var(--amber); font-family:var(--mono); font-size:11.5px; list-style:none; user-select:none;}
+.hint summary::-webkit-details-marker{display:none;}
+.hint summary::before{content:'▸ '; }
+.hint[open] summary::before{content:'▾ ';}
+.hint p{margin:8px 0 2px;}
+.warn{font-size:12.5px; color:var(--amber); background:rgba(245,199,107,0.08); border:1px solid #6b5a2c; padding:10px 14px; border-radius:6px; margin-top:10px;}
+.stat-row{display:flex; gap:22px; font-family:var(--mono); font-size:12.5px; color:var(--text-dim); margin-top:6px;}
+.stat-row b{color:var(--text); font-size:14px;}
+.handle{cursor:grab;}
+.handle:active{cursor:grabbing;}
+progress{width:100%; height:6px; accent-color:var(--fwd);}
+footer{
+  text-align:center; padding:30px 20px 50px; color:var(--text-dim); font-family:var(--mono); font-size:12px;
+  border-top:1px solid var(--border); margin-top:20px;
+}
+footer a{color:var(--fwd); text-decoration:none;}
+.subscript{font-size:0.75em; vertical-align:sub;}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <span class="brand">RNN Visualizer</span>
+  <span class="tagline">An interactive, from-scratch walkthrough of a Recurrent Neural Network — shape your own time-series data, watch a hand-written RNN train with closed-loop rollout, and run live autoregressive-free inference against the real data.</span>
+</div>
+
+<div class="wrap">
+
+<!-- SECTION 1: DATA -->
+<section id="section-data">
+  <div class="sec-head"><span class="sec-num">1</span><h2>Data</h2></div>
+  <p class="sec-sub">Shape a 500-point time series: in edit mode, hover the chart to see a draggable point appear, then drag it up or down to reshape the curve smoothly around that spot. Check "Zoom mode" to pan/zoom the chart with the mouse instead — scroll zooms both axes together, drag pans. Start from a preset, or edit freehand.</p>
+
+  <div class="panel">
+    <div class="row">
+      <button id="preset-sine">Sine wave</button>
+      <button id="preset-random">Random walk</button>
+      <button id="preset-noisy">Noisy sine</button>
+      <button id="preset-reset">Reset / flat</button>
+    </div>
+    <div class="row">
+      <div class="ctrl">Noise level <span class="val" id="noiseVal">0.05</span>
+        <input type="range" id="noiseSlider" min="0" max="0.5" step="0.01" value="0.05">
+      </div>
+      <div class="ctrl">Shift value ↕ <span class="val" id="shiftVal">0.00</span>
+        <input type="range" id="shiftSlider" min="-3" max="3" step="0.05" value="0"></div>
+      <button id="resetViewBtn">Reset shift / zoom</button>
+      <label class="zoom-toggle"><input type="checkbox" id="dataZoomToggle"> Zoom mode</label>
+    </div>
+    <div class="row" id="sineParamsRow">
+      <div class="ctrl">Period <span class="val" id="periodVal">60</span>
+        <input type="range" id="periodSlider" min="10" max="150" step="1" value="60"></div>
+      <div class="ctrl">Amplitude <span class="val" id="ampVal">1.00</span>
+        <input type="range" id="ampSlider" min="0.2" max="2" step="0.05" value="1"></div>
+      <div class="ctrl">Rise/fall skew (steep ↔ gentle) <span class="val" id="skewVal">0.50</span>
+        <input type="range" id="skewSlider" min="0.1" max="0.9" step="0.02" value="0.5"></div>
+    </div>
+    <div class="chart-box">
+      <svg id="dataChart" viewBox="0 0 1000 280"></svg>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- SECTION 2: TRAIN -->
+<section id="section-train">
+  <div class="sec-head"><span class="sec-num">2</span><h2>Train</h2><span class="phase-tag" id="phaseTag">idle</span></div>
+  <p class="sec-sub">A hand-written Elman RNN, trained with closed-loop (autoregressive) rollout so it doesn't collapse to a constant once it feeds on its own predictions.</p>
+
+  <div class="panel">
+    <div class="row">
+      <div class="ctrl">Hidden size <span class="val" id="hVal">4</span>
+        <input type="range" id="hSlider" min="2" max="8" step="1" value="4"></div>
+      <div class="ctrl">Window length T <span class="val" id="tVal">16</span>
+        <input type="range" id="tSlider" min="5" max="50" step="1" value="16"></div>
+      <div class="ctrl">Rollout steps R <span class="val" id="rVal">6</span>
+        <input type="range" id="rSlider" min="1" max="25" step="1" value="6"></div>
+      <div class="ctrl">Learning rate <span class="val" id="lrVal">0.010</span>
+        <input type="range" id="lrSlider" min="0" max="100" step="1" value="55"></div>
+      <div class="ctrl">Epochs (steps) <span class="val" id="epVal">2000</span>
+        <input type="range" id="epSlider" min="100" max="20000" step="100" value="2000"></div>
+      <div class="ctrl">Playback speed <span class="val" id="spdVal">1</span>
+        <input type="range" id="spdSlider" min="1" max="60" step="1" value="8"></div>
+      <div class="ctrl">Activation
+        <select id="actSelect"><option value="tanh">tanh</option><option value="relu">ReLU</option></select></div>
+    </div>
+    <div class="row">
+      <button class="primary" id="playBtn">▶ Train</button>
+      <button id="stepBtn">Step</button>
+      <button class="danger" id="resetBtn">Reset weights</button>
+      <span style="font-family:var(--mono); font-size:12px; color:var(--text-dim);">step <b id="stepCount" style="color:var(--text)">0</b> / <span id="epTarget">2000</span></span>
+    </div>
+    <progress id="trainProgress" value="0" max="2000"></progress>
+    <details class="hint">
+      <summary>Rollout / collapse tradeoff</summary>
+      <p>Larger rollout (R) defends against collapse further into the future, but is harder to optimize — it usually needs a higher learning rate and more epochs. In practice the model only resists collapsing for roughly as many steps as it was trained to roll out.</p>
+    </details>
+  </div>
+
+  <div class="grid2">
+    <div class="panel">
+      <h3 style="margin-top:0; font-size:14px;">Update equations</h3>
+      <div class="eq">
+        <div><span class="fwd-term">h<span class="subscript">t</span></span> = act( <span class="fwd-term">W<span class="subscript">xh</span>·x<span class="subscript">t</span></span> + <span class="fwd-term">W<span class="subscript">hh</span>·h<span class="subscript">t-1</span></span> + <span class="fwd-term">b<span class="subscript">h</span></span> )</div>
+        <div><span class="fwd-term">ŷ<span class="subscript">t</span></span> = <span class="fwd-term">W<span class="subscript">hy</span>·h<span class="subscript">t</span></span> + <span class="fwd-term">b<span class="subscript">y</span></span></div>
+        <div>loss = mean( (ŷ<span class="subscript">t</span> − y<span class="subscript">t</span>)² )</div>
+        <div><span class="bwd-term">∂loss/∂W</span> via BPTT through T+R unrolled steps, gradient-clipped to [-4, 4]</div>
+      </div>
+      <h3 style="font-size:14px;">RNN cell</h3>
+      <svg id="cellDiagram" viewBox="0 0 420 160" style="max-width:420px;"></svg>
+      <div class="legend">
+        <span class="swatch" style="background:var(--fwd)"></span>forward pass
+        <span class="swatch" style="background:var(--bwd)"></span>backward pass / weight update
+      </div>
+    </div>
+    <div class="panel">
+      <h3 style="margin-top:0; font-size:14px;">Live loss</h3>
+      <div class="chart-box"><svg id="lossChart" viewBox="0 0 400 180"></svg></div>
+      <div class="stat-row"><span>loss <b id="lossVal">—</b></span><span>min <b id="lossMin">—</b></span></div>
+      <h3 style="font-size:14px;">Weight matrices</h3>
+      <div class="mats" id="matContainer"></div>
+      <div class="legend">
+        <span class="swatch" style="background:#fb7185"></span>negative
+        <span class="swatch" style="background:#3a4256"></span>~0
+        <span class="swatch" style="background:#4fd1c5"></span>positive
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- SECTION 3: INFERENCE -->
+<section id="section-inference">
+  <div class="sec-head"><span class="sec-num">3</span><h2>Inference</h2></div>
+  <p class="sec-sub">The model steps through the real series following the true input at every point, and its predicted next value is plotted as a line directly over the actual data for comparison. In edit mode, hover the chart to reveal a draggable point and reshape the input. Check "Zoom mode" to pan/zoom with the mouse instead — scroll zooms both axes together, drag pans.</p>
+
+  <div class="panel">
+    <div class="row">
+      <div class="ctrl">Inference speed <span class="val" id="ispdVal">1.00x</span>
+        <input type="range" id="ispdSlider" min="-10" max="10" step="1" value="0"></div>
+      <button class="primary" id="runBtn">Run inference</button>
+      <button class="danger" id="stopBtn" disabled>Stop</button>
+      <button id="infResetBtn">Reset run</button>
+      <button id="zoomOutBtn">Reset zoom</button>
+      <button id="revertInputBtn">Revert input edits</button>
+      <label class="zoom-toggle"><input type="checkbox" id="inferZoomToggle"> Zoom mode</label>
+    </div>
+    <div id="fewUpdatesWarn" class="warn" style="display:none;">Weights have had very few training updates — predictions are close to random. Train the model first (Section 2) for a meaningful result.</div>
+    <div class="chart-box">
+      <svg id="hiddenStrip" viewBox="0 0 1000 90"></svg>
+      <svg id="inferChart" viewBox="0 0 1000 300"></svg>
+    </div>
+    <div class="legend">
+      <span class="swatch" style="background:#4a5570"></span>actual series
+      <span class="swatch" style="background:var(--fwd)"></span>predicted (follows actual input)
+      <span class="swatch" style="background:var(--amber)"></span>hover to reveal a drag point / hidden state h<span class="subscript">t</span> (strip above)
+    </div>
+    <div class="stat-row"><span>MAE <b id="maeVal">—</b></span><span>RMSE <b id="rmseVal">—</b></span><span>MAPE <b id="mapeVal">—</b></span></div>
+  </div>
+</section>
+
+</div>
+
+<footer>
+  Credit by SAIG lab from CE-KMITL · Powered by Claude ·
+  <a href="https://github.com/LLM-CE-KMITL/learning" target="_blank" rel="noopener">github.com/LLM-CE-KMITL/learning</a>
+</footer>
+
+<script>
+(function(){
+"use strict";
+
+/* ============================= RNN CORE ============================= */
+// Scalar-in/out Elman RNN. Weights: Wxh[H], Whh[H][H], Why[H], bh[H], by(scalar)
+function makeRNN(H){
+  const s = 1/Math.sqrt(H);
+  const rnd = ()=> (Math.random()*2-1)*s;
+  return {
+    H,
+    Wxh: Array.from({length:H}, rnd),
+    Whh: Array.from({length:H}, ()=> Array.from({length:H}, rnd)),
+    Why: Array.from({length:H}, rnd),
+    bh: Array.from({length:H}, ()=>0),
+    by: 0
+  };
+}
+function act(v, kind){ return kind==='relu' ? Math.max(0,v) : Math.tanh(v); }
+function actderiv(z, h, kind){ return kind==='relu' ? (z>0?1:0) : (1-h*h); }
+
+// Runs closed-loop forward+backward over T teacher-forced steps + R rollout steps.
+// series: full data array; p: start index; T,R: window/rollout lengths; kind: 'tanh'|'relu'
+// Returns {loss, grads, hStates, yStates, xStates}
+function forwardBackward(w, series, p, T, R, kind){
+  const H = w.H;
+  const N = T+R;
+  const h = [Array(H).fill(0)]; // h[0] = zeros
+  const z = [null];
+  const x = [null];
+  const y = [null];
+  const target = [null];
+
+  for(let t=1; t<=N; t++){
+    let xt;
+    if(t<=T) xt = series[p+t-1];
+    else xt = y[t-1];
+    const hprev = h[t-1];
+    const zt = new Array(H);
+    for(let i=0;i<H;i++){
+      let sum = w.Wxh[i]*xt + w.bh[i];
+      for(let k=0;k<H;k++) sum += w.Whh[i][k]*hprev[k];
+      zt[i] = sum;
+    }
+    const ht = zt.map(v=>act(v,kind));
+    let yt = w.by;
+    for(let i=0;i<H;i++) yt += w.Why[i]*ht[i];
+    x.push(xt); z.push(zt); h.push(ht); y.push(yt);
+    target.push(series[p+t]);
+  }
+
+  let loss = 0;
+  for(let t=1;t<=N;t++){ const e = y[t]-target[t]; loss += e*e; }
+  loss /= N;
+
+  const grads = { Wxh:Array(H).fill(0), Whh:Array.from({length:H},()=>Array(H).fill(0)), Why:Array(H).fill(0), bh:Array(H).fill(0), by:0 };
+  let dhNext = Array(H).fill(0);
+  let dxFromNext = 0; // gradient flowing into dy_t from x_{t+1} = y_t dependency (rollout only)
+
+  for(let t=N; t>=1; t--){
+    const dy = (2*(y[t]-target[t])/N) + dxFromNext;
+    for(let i=0;i<H;i++) grads.Why[i] += dy*h[t][i];
+    grads.by += dy;
+
+    const dz = new Array(H);
+    for(let i=0;i<H;i++){
+      const dh_i = dy*w.Why[i] + dhNext[i];
+      dz[i] = dh_i * actderiv(z[t][i], h[t][i], kind);
+    }
+    for(let i=0;i<H;i++){
+      grads.Wxh[i] += dz[i]*x[t];
+      grads.bh[i] += dz[i];
+      for(let k=0;k<H;k++) grads.Whh[i][k] += dz[i]*h[t-1][k];
+    }
+    const newDhNext = Array(H).fill(0);
+    for(let k=0;k<H;k++){
+      let s=0;
+      for(let i=0;i<H;i++) s += w.Whh[i][k]*dz[i];
+      newDhNext[k]=s;
+    }
+    dhNext = newDhNext;
+
+    let dx = 0;
+    for(let i=0;i<H;i++) dx += w.Wxh[i]*dz[i];
+    dxFromNext = (t>T) ? dx : 0; // x_t = y_{t-1} only for rollout steps (t>T)
+  }
+
+  return {loss, grads, h, y, x, T, R};
+}
+
+function clip(v, c){ return Math.max(-c, Math.min(c, v)); }
+function applyGrads(w, grads, lr, clipVal){
+  const H = w.H; const changed = {Wxh:[],Whh:[],Why:[],bh:[],by:false};
+  for(let i=0;i<H;i++){
+    const g = clip(grads.Wxh[i], clipVal);
+    if(Math.abs(g*lr) > 1e-9){ w.Wxh[i]-=lr*g; changed.Wxh.push(i); }
+  }
+  for(let i=0;i<H;i++) for(let k=0;k<H;k++){
+    const g = clip(grads.Whh[i][k], clipVal);
+    if(Math.abs(g*lr) > 1e-9){ w.Whh[i][k]-=lr*g; changed.Whh.push([i,k]); }
+  }
+  for(let i=0;i<H;i++){
+    const g = clip(grads.Why[i], clipVal);
+    if(Math.abs(g*lr) > 1e-9){ w.Why[i]-=lr*g; changed.Why.push(i); }
+  }
+  for(let i=0;i<H;i++){
+    const g = clip(grads.bh[i], clipVal);
+    if(Math.abs(g*lr) > 1e-9){ w.bh[i]-=lr*g; changed.bh.push(i); }
+  }
+  const gby = clip(grads.by, clipVal);
+  if(Math.abs(gby*lr) > 1e-9){ w.by -= lr*gby; changed.by = true; }
+  return changed;
+}
+
+// Finite-difference numerical gradient check (used for internal verification, exposed for tests)
+function numericalGradCheck(w, series, p, T, R, kind, eps){
+  eps = eps || 1e-5;
+  const {grads} = forwardBackward(w, series, p, T, R, kind);
+  function lossAt(){ return forwardBackward(w, series, p, T, R, kind).loss; }
+  let maxRelErr = 0;
+  function check(analytic, plusMinus){
+    const base = plusMinus();
+    const lp = lossAt();
+    const l0 = base.restore();
+    const num = (lp - l0);
+    return num;
+  }
+  // check a handful of Wxh and Whh entries
+  const H = w.H;
+  const samples = [];
+  for(let i=0;i<H;i++){
+    const orig = w.Wxh[i];
+    w.Wxh[i] = orig+eps; const lp = lossAt();
+    w.Wxh[i] = orig-eps; const lm = lossAt();
+    w.Wxh[i] = orig;
+    const numGrad = (lp-lm)/(2*eps);
+    const rel = Math.abs(numGrad-grads.Wxh[i]) / (Math.abs(numGrad)+Math.abs(grads.Wxh[i])+1e-8);
+    samples.push({param:'Wxh['+i+']', numGrad, analytic:grads.Wxh[i], rel});
+    maxRelErr = Math.max(maxRelErr, rel);
+  }
+  for(let i=0;i<H && i<3;i++){
+    for(let k=0;k<H && k<3;k++){
+      const orig = w.Whh[i][k];
+      w.Whh[i][k]=orig+eps; const lp = lossAt();
+      w.Whh[i][k]=orig-eps; const lm = lossAt();
+      w.Whh[i][k]=orig;
+      const numGrad=(lp-lm)/(2*eps);
+      const rel = Math.abs(numGrad-grads.Whh[i][k]) / (Math.abs(numGrad)+Math.abs(grads.Whh[i][k])+1e-8);
+      samples.push({param:'Whh['+i+']['+k+']', numGrad, analytic:grads.Whh[i][k], rel});
+      maxRelErr = Math.max(maxRelErr, rel);
+    }
+  }
+  return {maxRelErr, samples};
+}
+
+if(typeof module !== 'undefined' && module.exports){
+  module.exports = { makeRNN, forwardBackward, applyGrads, numericalGradCheck, act, actderiv, clip };
+}
+/* If running under Node for tests, stop here before touching the DOM. */
+if(typeof window === 'undefined'){ return; }
+
+/* ============================= APP STATE ============================= */
+const N_POINTS = 500;
+const state = {
+  baseSeries: new Array(N_POINTS).fill(0),
+  series: new Array(N_POINTS).fill(0),
+  editOffset: new Array(N_POINTS).fill(0), // persistent, per-index additive edits from hover-drag
+  valueShift: 0, // global vertical shift applied to the whole series
+  noise: 0.05,
+  H: 4, T: 16, R: 6, lr: 0.01, epochsTarget: 2000, activation: 'tanh',
+  weights: null,
+  lossHistory: [],
+  stepCount: 0,
+  playing: false,
+  playTimer: null,
+  trainVisible: true,
+  inferRunning: false,
+  inferGen: 0,
+  dataYZoom: 1, inferYZoom: 1,
+  dataZoomMode: false, inferZoomMode: false,
+  trainWindow: null
+};
+
+function gaussian(dx, sigma){ return Math.exp(-(dx*dx)/(2*sigma*sigma)); }
+function safeCapture(el, pointerId){ try{ el.setPointerCapture(pointerId); }catch(e){} }
+const EDIT_SIGMA = (N_POINTS/10)/1.8;
+
+function genSine(n, noise, period, amp, skew){
+  period = period || 60; amp = (amp===undefined)?1:amp; skew = (skew===undefined)?0.5:skew;
+  skew = Math.min(0.9, Math.max(0.1, skew)); // fraction of the period spent rising
+  const arr = new Array(n);
+  for(let i=0;i<n;i++){
+    let p = ((i % period) + period) % period / period; // 0..1 phase within cycle
+    let pw; // warped phase so rise/fall portions have unequal width -> steeper/gentler slopes
+    if(p < skew) pw = (p/skew)*0.5;
+    else pw = 0.5 + ((p-skew)/(1-skew))*0.5;
+    arr[i] = amp*Math.sin(2*Math.PI*pw) + (Math.random()*2-1)*noise;
+  }
+  return arr;
+}
+function genRandomWalk(n, noise){
+  const arr = new Array(n); let v=0;
+  for(let i=0;i<n;i++){ v += (Math.random()*2-1)*(0.15+noise); arr[i]=v; }
+  // normalize to ~[-1,1]
+  const mx = Math.max(...arr.map(Math.abs))||1;
+  return arr.map(v=>v/mx*1.2);
+}
+function genNoisySine(n, noise, period, amp, skew){ return genSine(n, Math.max(noise,0.12), period, amp, skew); }
+function genFlat(n){ return new Array(n).fill(0); }
+
+function setBaseSeries(arr){
+  state.baseSeries = arr.slice();
+  state.editOffset = new Array(N_POINTS).fill(0);
+  recomputeSeries();
+}
+function recomputeSeries(){
+  const out = new Array(N_POINTS);
+  for(let j=0;j<N_POINTS;j++) out[j] = state.baseSeries[j] + state.editOffset[j] + state.valueShift;
+  state.series = out;
+}
+/* Apply a smooth (Gaussian-falloff) bump centered at index idx0, of magnitude delta,
+   relative to a snapshot of editOffset taken at drag-start (so repeated moves during
+   one drag don't compound). */
+function applyEditBump(baseOffsetSnapshot, idx0, delta){
+  for(let j=0;j<N_POINTS;j++){
+    state.editOffset[j] = baseOffsetSnapshot[j] + delta*gaussian(j-idx0, EDIT_SIGMA);
+  }
+  recomputeSeries();
+}
+
+/* ============================= DATA CHART / DRAG ============================= */
+const dataChart = document.getElementById('dataChart');
+const CW=1000, CH=280, PAD=18, PADL=46;
+let dataView = { start: 0, end: N_POINTS-1 };
+function valueRange(arr){
+  let lo=Math.min(...arr), hi=Math.max(...arr);
+  if(hi-lo < 0.5){ const m=(hi+lo)/2; lo=m-0.5; hi=m+0.5; }
+  const pad=(hi-lo)*0.15;
+  return [lo-pad, hi+pad];
+}
+function dataValueRange(arr){
+  // like valueRange, but always keeps 0 as the y-axis baseline
+  let lo = Math.min(0, Math.min(...arr));
+  let hiRaw = Math.max(...arr);
+  let hi = Math.max(hiRaw, lo+0.5);
+  const pad = (hi-lo)*0.12;
+  hi += pad;
+  if(lo < 0) lo -= pad;
+  return [lo, hi];
+}
+function xOf(i){ return PADL + (i-dataView.start)*(CW-PADL-PAD)/(dataView.end-dataView.start); }
+function yOf(v, lo, hi){ return CH-PAD - (v-lo)*(CH-2*PAD)/(hi-lo); }
+function axisLabelsSVG(lo, hi, idxStart, idxEnd, xOfFn, chHeight){
+  let svg='';
+  [hi, (hi+lo)/2, lo].forEach((v,i)=>{
+    const y = PAD + i*(chHeight-2*PAD)/2;
+    svg += `<line x1="${PADL}" y1="${y.toFixed(1)}" x2="${CW-PAD}" y2="${y.toFixed(1)}" stroke="var(--grid)" stroke-width="1"/>`;
+    svg += `<text x="${PADL-6}" y="${(y+3).toFixed(1)}" text-anchor="end" fill="var(--text-dim)" font-family="monospace" font-size="9">${v.toFixed(2)}</text>`;
+  });
+  const xs = [idxStart, idxStart+(idxEnd-idxStart)*0.25, idxStart+(idxEnd-idxStart)*0.5, idxStart+(idxEnd-idxStart)*0.75, idxEnd];
+  xs.forEach((xi,i)=>{
+    const x = xOfFn(xi);
+    const anchor = i===0?'start':(i===xs.length-1?'end':'middle');
+    svg += `<text x="${x.toFixed(1)}" y="${chHeight-4}" text-anchor="${anchor}" fill="var(--text-dim)" font-family="monospace" font-size="9">${Math.round(xi)}</text>`;
+  });
+  return svg;
+}
+
+function applyYZoom(lo, hi, zoom){
+  const mid = (lo+hi)/2;
+  const half = (hi-lo)/2/Math.max(0.05, zoom);
+  return [mid-half, mid+half];
+}
+
+function renderDataChart(hoverIdx){
+  let [lo,hi] = dataValueRange(state.series);
+  [lo,hi] = applyYZoom(lo, hi, state.dataYZoom);
+  const i0 = Math.max(0, Math.floor(dataView.start));
+  const i1 = Math.min(N_POINTS-1, Math.ceil(dataView.end));
+  let d = 'M ';
+  for(let i=i0;i<=i1;i++){ d += (i>i0? ' L ':'') + xOf(i).toFixed(1)+' '+yOf(state.series[i],lo,hi).toFixed(1); }
+  let svg = axisLabelsSVG(lo, hi, dataView.start, dataView.end, xOf, CH);
+  svg += `<line x1="${PADL}" y1="${yOf(0,lo,hi)}" x2="${CW-PAD}" y2="${yOf(0,lo,hi)}" stroke="var(--amber)" stroke-width="1" stroke-dasharray="3,3" opacity="0.5"/>`;
+  // sliding-window overlay: the window(s) currently used by training, shown live while training
+  if(state.trainWindow){
+    const {p,T,R} = state.trainWindow;
+    const wx1 = xOf(Math.max(i0,p)), wx2 = xOf(Math.min(i1,p+T));
+    const rx1 = xOf(Math.max(i0,p+T)), rx2 = xOf(Math.min(i1,p+T+R));
+    if(wx2>wx1) svg += `<rect x="${wx1.toFixed(1)}" y="${PAD}" width="${(wx2-wx1).toFixed(1)}" height="${CH-2*PAD}" fill="rgba(79,209,197,0.16)" stroke="var(--fwd)" stroke-width="1" stroke-dasharray="4,3"/>`;
+    if(rx2>rx1) svg += `<rect x="${rx1.toFixed(1)}" y="${PAD}" width="${(rx2-rx1).toFixed(1)}" height="${CH-2*PAD}" fill="rgba(251,113,133,0.14)" stroke="var(--bwd)" stroke-width="1" stroke-dasharray="4,3"/>`;
+  }
+  svg += `<path d="${d}" fill="none" stroke="var(--fwd)" stroke-width="2"/>`;
+  if(!state.dataZoomMode && hoverIdx!==null && hoverIdx!==undefined && hoverIdx>=i0 && hoverIdx<=i1){
+    svg += `<circle cx="${xOf(hoverIdx).toFixed(1)}" cy="${yOf(state.series[hoverIdx],lo,hi).toFixed(1)}" r="7" fill="var(--panel)" stroke="var(--amber)" stroke-width="2.5"/>`;
+  }
+  dataChart.innerHTML = svg;
+  dataChart.dataset.lo=lo; dataChart.dataset.hi=hi;
+}
+
+function idxFromXData(svgX){
+  const idx = Math.round(dataView.start + (svgX-PADL)/(CW-PADL-PAD)*(dataView.end-dataView.start));
+  return Math.max(0, Math.min(N_POINTS-1, idx));
+}
+
+let dataDragging = false, dataDragIdx0 = null, dataDragBaseOffset = null, dataDragOrigVal = 0, dataHoverIdx = null;
+let dataPanning = false, dataPanStartX = 0, dataPanStartView = null;
+
+dataChart.addEventListener('pointerdown', (e)=>{
+  const rect = dataChart.getBoundingClientRect();
+  const svgX = (e.clientX-rect.left)/rect.width*CW;
+  if(state.dataZoomMode){
+    dataPanning = true;
+    dataPanStartX = e.clientX;
+    dataPanStartView = { start: dataView.start, end: dataView.end };
+    safeCapture(dataChart, e.pointerId);
+    return;
+  }
+  dataDragIdx0 = idxFromXData(svgX);
+  dataDragBaseOffset = state.editOffset.slice();
+  dataDragOrigVal = state.series[dataDragIdx0];
+  dataDragging = true;
+  safeCapture(dataChart, e.pointerId);
+});
+dataChart.addEventListener('pointermove', (e)=>{
+  const rect = dataChart.getBoundingClientRect();
+  const svgX = (e.clientX-rect.left)/rect.width*CW;
+  const svgY = (e.clientY-rect.top)/rect.height*CH;
+  if(dataPanning){
+    const dx = e.clientX - dataPanStartX;
+    const span = dataPanStartView.end - dataPanStartView.start;
+    const idxDelta = -dx/rect.width*span;
+    let start = dataPanStartView.start+idxDelta, end = dataPanStartView.end+idxDelta;
+    if(start<0){ end-=start; start=0; }
+    if(end>N_POINTS-1){ start-=(end-(N_POINTS-1)); end=N_POINTS-1; }
+    dataView.start=Math.max(0,start); dataView.end=Math.min(N_POINTS-1,end);
+    renderDataChart(dataHoverIdx);
+  } else if(dataDragging){
+    const lo = parseFloat(dataChart.dataset.lo), hi = parseFloat(dataChart.dataset.hi);
+    const val = hi - (svgY-PAD)*(hi-lo)/(CH-2*PAD);
+    const delta = val - dataDragOrigVal;
+    applyEditBump(dataDragBaseOffset, dataDragIdx0, delta);
+    dataHoverIdx = dataDragIdx0;
+    renderDataChart(dataHoverIdx);
+  } else {
+    dataHoverIdx = idxFromXData(svgX);
+    renderDataChart(dataHoverIdx);
+  }
+});
+function endDataDrag(){ dataDragging=false; dataPanning=false; }
+dataChart.addEventListener('pointerup', endDataDrag);
+dataChart.addEventListener('pointerleave', ()=>{ endDataDrag(); dataHoverIdx=null; renderDataChart(null); });
+dataChart.addEventListener('wheel', (e)=>{
+  if(!state.dataZoomMode) return; // mouse-driven zoom only active when the toggle is on
+  e.preventDefault();
+  const rect = dataChart.getBoundingClientRect();
+  const svgX = (e.clientX-rect.left)/rect.width*CW;
+  const centerIdx = idxFromXData(svgX);
+  const factor = e.deltaY<0 ? 0.85 : (1/0.85);
+  let span = (dataView.end-dataView.start)*factor;
+  span = Math.max(10, Math.min(N_POINTS-1, span));
+  let start = centerIdx - (centerIdx-dataView.start)*(span/(dataView.end-dataView.start));
+  let end = start+span;
+  if(start<0){ end-=start; start=0; }
+  if(end>N_POINTS-1){ start-=(end-(N_POINTS-1)); end=N_POINTS-1; }
+  dataView.start=Math.max(0,start); dataView.end=Math.min(N_POINTS-1,end);
+  const yFactor = e.deltaY<0 ? 1.15 : (1/1.15);
+  state.dataYZoom = Math.max(0.3, Math.min(6, state.dataYZoom*yFactor));
+  renderDataChart(dataHoverIdx);
+}, {passive:false});
+
+document.getElementById('dataZoomToggle').addEventListener('change', (e)=>{
+  state.dataZoomMode = e.target.checked;
+  dataChart.style.cursor = state.dataZoomMode ? 'grab' : 'crosshair';
+  renderDataChart(null);
+});
+
+const periodSlider = document.getElementById('periodSlider'), ampSlider = document.getElementById('ampSlider'), skewSlider = document.getElementById('skewSlider');
+const sineParamsRow = document.getElementById('sineParamsRow');
+let lastPreset = 'sine';
+function currentSineParams(){
+  return { period: parseFloat(periodSlider.value), amp: parseFloat(ampSlider.value), skew: parseFloat(skewSlider.value) };
+}
+function regenIfSine(){
+  if(lastPreset !== 'sine' && lastPreset !== 'noisy') return;
+  const {period,amp,skew} = currentSineParams();
+  const arr = lastPreset==='sine' ? genSine(N_POINTS, state.noise, period, amp, skew) : genNoisySine(N_POINTS, state.noise, period, amp, skew);
+  setBaseSeries(arr); renderDataChart(); renderInferChart(curPredicted, curHidden);
+}
+function updateSineRowVisibility(){
+  sineParamsRow.style.display = (lastPreset==='sine' || lastPreset==='noisy') ? 'flex' : 'none';
+}
+document.getElementById('preset-sine').onclick = ()=>{ lastPreset='sine'; updateSineRowVisibility(); const {period,amp,skew}=currentSineParams(); setBaseSeries(genSine(N_POINTS, state.noise, period, amp, skew)); renderDataChart(); };
+document.getElementById('preset-random').onclick = ()=>{ lastPreset='random'; updateSineRowVisibility(); setBaseSeries(genRandomWalk(N_POINTS, state.noise)); renderDataChart(); };
+document.getElementById('preset-noisy').onclick = ()=>{ lastPreset='noisy'; updateSineRowVisibility(); const {period,amp,skew}=currentSineParams(); setBaseSeries(genNoisySine(N_POINTS, state.noise, period, amp, skew)); renderDataChart(); };
+document.getElementById('preset-reset').onclick = ()=>{ lastPreset='flat'; updateSineRowVisibility(); setBaseSeries(genFlat(N_POINTS)); renderDataChart(); };
+const noiseSlider = document.getElementById('noiseSlider');
+noiseSlider.addEventListener('input', ()=>{ state.noise = parseFloat(noiseSlider.value); document.getElementById('noiseVal').textContent = state.noise.toFixed(2); regenIfSine(); });
+periodSlider.addEventListener('input', ()=>{ document.getElementById('periodVal').textContent = periodSlider.value; regenIfSine(); });
+ampSlider.addEventListener('input', ()=>{ document.getElementById('ampVal').textContent = parseFloat(ampSlider.value).toFixed(2); regenIfSine(); });
+skewSlider.addEventListener('input', ()=>{ document.getElementById('skewVal').textContent = parseFloat(skewSlider.value).toFixed(2); regenIfSine(); });
+
+const shiftSlider = document.getElementById('shiftSlider');
+shiftSlider.addEventListener('input', ()=>{
+  state.valueShift = parseFloat(shiftSlider.value);
+  document.getElementById('shiftVal').textContent = state.valueShift.toFixed(2);
+  recomputeSeries();
+  renderDataChart(dataHoverIdx);
+  renderInferChart(curPredicted, curHidden);
+});
+document.getElementById('resetViewBtn').onclick = ()=>{
+  state.valueShift = 0; state.dataYZoom = 1;
+  dataView = { start:0, end:N_POINTS-1 };
+  shiftSlider.value = 0;
+  document.getElementById('shiftVal').textContent = '0.00';
+  recomputeSeries();
+  renderDataChart(dataHoverIdx);
+  renderInferChart(curPredicted, curHidden);
+};
+
+/* ============================= TRAIN UI ============================= */
+const hSlider=document.getElementById('hSlider'), tSlider=document.getElementById('tSlider'),
+      rSlider=document.getElementById('rSlider'), lrSlider=document.getElementById('lrSlider'),
+      epSlider=document.getElementById('epSlider'), spdSlider=document.getElementById('spdSlider'),
+      actSelect=document.getElementById('actSelect');
+
+function lrFromSlider(v){ // log scale 0..100 -> 1e-4 .. 1e-1
+  const t = v/100;
+  return Math.pow(10, -4 + t*3);
+}
+function syncTrainLabels(){
+  document.getElementById('hVal').textContent = state.H;
+  document.getElementById('tVal').textContent = state.T;
+  document.getElementById('rVal').textContent = state.R;
+  document.getElementById('lrVal').textContent = state.lr.toFixed(4);
+  document.getElementById('epVal').textContent = state.epochsTarget;
+  document.getElementById('epTarget').textContent = state.epochsTarget;
+  document.getElementById('spdVal').textContent = spdSlider.value;
+  document.getElementById('trainProgress').max = state.epochsTarget;
+}
+
+function resetWeights(){
+  state.weights = makeRNN(state.H);
+  state.lossHistory = [];
+  state.stepCount = 0;
+  state.trainWindow = null;
+  document.getElementById('stepCount').textContent = '0';
+  document.getElementById('trainProgress').value = 0;
+  buildMatrixGrids();
+  renderMatrices(null);
+  renderLossChart();
+  document.getElementById('lossVal').textContent='—';
+  document.getElementById('lossMin').textContent='—';
+  renderDataChart(dataHoverIdx);
+}
+
+hSlider.addEventListener('input', ()=>{ state.H=parseInt(hSlider.value,10); syncTrainLabels(); resetWeights(); });
+tSlider.addEventListener('input', ()=>{ state.T=parseInt(tSlider.value,10); syncTrainLabels(); });
+rSlider.addEventListener('input', ()=>{ state.R=parseInt(rSlider.value,10); syncTrainLabels(); });
+lrSlider.addEventListener('input', ()=>{ state.lr=lrFromSlider(parseInt(lrSlider.value,10)); syncTrainLabels(); });
+epSlider.addEventListener('input', ()=>{ state.epochsTarget=parseInt(epSlider.value,10); syncTrainLabels(); });
+spdSlider.addEventListener('input', ()=> syncTrainLabels());
+actSelect.addEventListener('change', ()=>{ state.activation = actSelect.value; resetWeights(); });
+
+state.lr = lrFromSlider(parseInt(lrSlider.value,10));
+
+/* Weight matrix heatmap grids */
+const matContainer = document.getElementById('matContainer');
+function colorFor(v, scale){
+  scale = Math.max(0.05, scale || 2);
+  let t = Math.max(-1, Math.min(1, v/scale));
+  const boosted = Math.sign(t) * Math.pow(Math.abs(t), 0.6); // nonlinear boost: separates small values more clearly
+  if(boosted>=0) return mixColor([20,23,32], [64,255,225], boosted);
+  return mixColor([20,23,32], [255,58,96], -boosted);
+}
+function mixColor(a,b,t){ const r=Math.round(a[0]+(b[0]-a[0])*t), g=Math.round(a[1]+(b[1]-a[1])*t), bl=Math.round(a[2]+(b[2]-a[2])*t); return `rgb(${r},${g},${bl})`; }
+function matrixMaxAbs(w){
+  const H = w.H;
+  let m = Math.abs(w.by);
+  for(let i=0;i<H;i++){
+    m = Math.max(m, Math.abs(w.Wxh[i]), Math.abs(w.bh[i]), Math.abs(w.Why[i]));
+    for(let k=0;k<H;k++) m = Math.max(m, Math.abs(w.Whh[i][k]));
+  }
+  return m;
+}
+
+function buildMatrixGrids(){
+  const H = state.H;
+  matContainer.innerHTML = '';
+  const defs = [
+    {key:'Wxh', label:'Wₓₕ', rows:H, cols:1},
+    {key:'Whh', label:'Wₕₕ', rows:H, cols:H},
+    {key:'bh', label:'bₕ', rows:H, cols:1},
+    {key:'Why', label:'Wₕᵧ', rows:1, cols:H},
+    {key:'by', label:'bᵧ', rows:1, cols:1}
+  ];
+  defs.forEach(def=>{
+    const block = document.createElement('div');
+    block.className='mat-block';
+    block.innerHTML = `<div class="mat-label">${def.label}</div>`;
+    const grid = document.createElement('div');
+    grid.className='mat-grid';
+    grid.style.gridTemplateColumns = `repeat(${def.cols}, 52px)`;
+    grid.id = 'grid-'+def.key;
+    for(let i=0;i<def.rows*def.cols;i++){
+      const cell=document.createElement('div');
+      cell.className='cell'; cell.dataset.idx=i;
+      grid.appendChild(cell);
+    }
+    block.appendChild(grid);
+    matContainer.appendChild(block);
+  });
+}
+function renderMatrices(changed){
+  const w = state.weights; if(!w) return;
+  const H = w.H;
+  const scale = matrixMaxAbs(w);
+  const setCell = (gridId, i, v)=>{
+    const grid = document.getElementById(gridId);
+    const cell = grid.children[i];
+    if(!cell) return;
+    cell.style.backgroundColor = colorFor(v, scale);
+    cell.textContent = v.toFixed(3);
+  };
+  for(let i=0;i<H;i++) setCell('grid-Wxh', i, w.Wxh[i]);
+  for(let i=0;i<H;i++) for(let k=0;k<H;k++) setCell('grid-Whh', i*H+k, w.Whh[i][k]);
+  for(let i=0;i<H;i++) setCell('grid-bh', i, w.bh[i]);
+  for(let i=0;i<H;i++) setCell('grid-Why', i, w.Why[i]);
+  setCell('grid-by', 0, w.by);
+}
+
+/* cell diagram (static) */
+document.getElementById('cellDiagram').innerHTML = `
+  <rect x="10" y="60" width="70" height="40" rx="8" fill="var(--panel2)" stroke="var(--fwd)" stroke-width="1.5"/>
+  <text x="45" y="85" text-anchor="middle" fill="var(--fwd)" font-family="monospace" font-size="14">x_t</text>
+  <rect x="170" y="60" width="80" height="40" rx="8" fill="var(--panel2)" stroke="var(--fwd)" stroke-width="1.5"/>
+  <text x="210" y="85" text-anchor="middle" fill="var(--fwd)" font-family="monospace" font-size="14">h_t</text>
+  <rect x="335" y="60" width="75" height="40" rx="8" fill="var(--panel2)" stroke="var(--fwd)" stroke-width="1.5"/>
+  <text x="372" y="85" text-anchor="middle" fill="var(--fwd)" font-family="monospace" font-size="13">ŷ_t</text>
+  <line x1="80" y1="80" x2="168" y2="80" stroke="var(--fwd)" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="120" y="72" fill="var(--text-dim)" font-family="monospace" font-size="11">Wxh</text>
+  <line x1="250" y1="80" x2="333" y2="80" stroke="var(--fwd)" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="278" y="72" fill="var(--text-dim)" font-family="monospace" font-size="11">Why</text>
+  <path d="M 210 60 C 210 15, 300 15, 300 60" fill="none" stroke="var(--bwd)" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arrow2)"/>
+  <text x="255" y="20" fill="var(--bwd)" font-family="monospace" font-size="11">Whh (h_t-1 self-loop)</text>
+  <defs>
+    <marker id="arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="var(--fwd)"/></marker>
+    <marker id="arrow2" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="var(--bwd)"/></marker>
+  </defs>
+`;
+
+/* loss chart */
+const lossChart = document.getElementById('lossChart');
+function renderLossChart(){
+  const hist = state.lossHistory;
+  const W=400, Hh=180, padL=42, padR=10, padT=10, padB=18;
+  if(hist.length<2){ lossChart.innerHTML=''; return; }
+  const shown = hist.slice(-300);
+  const lo = Math.min(...shown), hi = Math.max(...shown);
+  const range = (hi-lo)||1;
+  const plotW = W-padL-padR, plotH = Hh-padT-padB;
+  let d='M ';
+  shown.forEach((v,i)=>{
+    const x = padL + i*plotW/(shown.length-1);
+    const y = padT + plotH - (v-lo)*plotH/range;
+    d += (i?' L ':'') + x.toFixed(1)+' '+y.toFixed(1);
+  });
+  const startStep = state.stepCount - shown.length + 1;
+  let svg = '';
+  // horizontal gridlines + y labels (top=max, mid, bottom=min)
+  [hi, lo+range/2, lo].forEach((v,i)=>{
+    const y = padT + i*plotH/2;
+    svg += `<line x1="${padL}" y1="${y.toFixed(1)}" x2="${W-padR}" y2="${y.toFixed(1)}" stroke="var(--grid)" stroke-width="1"/>`;
+    svg += `<text x="${padL-6}" y="${(y+3).toFixed(1)}" text-anchor="end" fill="var(--text-dim)" font-family="monospace" font-size="9">${v.toFixed(4)}</text>`;
+  });
+  svg += `<text x="${padL}" y="${Hh-4}" fill="var(--text-dim)" font-family="monospace" font-size="9">${Math.max(0,startStep)}</text>`;
+  svg += `<text x="${W-padR}" y="${Hh-4}" text-anchor="end" fill="var(--text-dim)" font-family="monospace" font-size="9">${state.stepCount}</text>`;
+  svg += `<path d="${d}" fill="none" stroke="var(--bwd)" stroke-width="1.6"/>`;
+  lossChart.innerHTML = svg;
+}
+
+/* phase tag */
+const phaseTag = document.getElementById('phaseTag');
+function flashPhase(){
+  phaseTag.textContent='forward'; phaseTag.className='phase-tag forward';
+  setTimeout(()=>{
+    phaseTag.textContent='backward'; phaseTag.className='phase-tag backward';
+    setTimeout(()=>{ phaseTag.textContent='idle'; phaseTag.className='phase-tag'; }, 140);
+  }, 110);
+}
+
+function trainStep(){
+  const w = state.weights;
+  const T=state.T, R=state.R;
+  if(N_POINTS - (T+R) - 1 <= 0) return;
+  const p = 1+Math.floor(Math.random()*(N_POINTS-(T+R)-1));
+  const res = forwardBackward(w, state.series, p, T, R, state.activation);
+  const changed = applyGrads(w, res.grads, state.lr, 4);
+  state.lossHistory.push(res.loss);
+  state.stepCount++;
+  document.getElementById('stepCount').textContent = state.stepCount;
+  document.getElementById('trainProgress').value = Math.min(state.stepCount, state.epochsTarget);
+  document.getElementById('lossVal').textContent = res.loss.toFixed(5);
+  const mn = Math.min(...state.lossHistory);
+  document.getElementById('lossMin').textContent = mn.toFixed(5);
+  renderMatrices(changed);
+  renderLossChart();
+  flashPhase();
+  state.trainWindow = { p, T, R };
+  renderDataChart(dataHoverIdx);
+}
+
+let playInterval=null;
+function stopPlaying(){
+  state.playing=false;
+  if(playInterval){ clearInterval(playInterval); playInterval=null; }
+  document.getElementById('playBtn').textContent='▶ Train';
+}
+function startPlaying(){
+  state.playing=true;
+  document.getElementById('playBtn').textContent='⏸ Pause';
+  const speed = parseInt(spdSlider.value,10);
+  const interval = Math.max(15, 260 - speed*4);
+  playInterval = setInterval(()=>{
+    if(!state.trainVisible) return; // paused while off-screen, but keep loop alive to resume automatically
+    if(state.stepCount >= state.epochsTarget){ stopPlaying(); return; }
+    trainStep();
+  }, interval);
+}
+document.getElementById('playBtn').onclick = ()=>{
+  if(state.playing) stopPlaying(); else startPlaying();
+};
+document.getElementById('stepBtn').onclick = ()=>{ if(!state.weights) resetWeights(); trainStep(); };
+document.getElementById('resetBtn').onclick = resetWeights;
+
+if(typeof IntersectionObserver !== 'undefined'){
+  const trainObserver = new IntersectionObserver((entries)=>{
+    entries.forEach(e=>{ if(e.target.id==='section-train') state.trainVisible = e.isIntersecting; });
+  }, {threshold:0.1});
+  trainObserver.observe(document.getElementById('section-train'));
+}
+
+/* ============================= INFERENCE UI ============================= */
+const ispdSlider = document.getElementById('ispdSlider');
+const inferChart = document.getElementById('inferChart');
+const hiddenStrip = document.getElementById('hiddenStrip');
+const CH2 = 300; // inferChart's own viewBox height (kept separate from the data chart's CH)
+let curPredicted = null, curHidden = null;
+
+function speedMultiplier(){ return Math.pow(10, parseInt(ispdSlider.value,10)/10); }
+function formatSpeed(m){ return (m<1 ? m.toFixed(2) : m.toFixed(2)) + 'x'; }
+ispdSlider.addEventListener('input', ()=> document.getElementById('ispdVal').textContent = formatSpeed(speedMultiplier()));
+
+let inferView = { start: 0, end: N_POINTS-1 };
+function xOfInfer(i){ return PADL + (i-inferView.start)*(CW-PADL-PAD)/(inferView.end-inferView.start); }
+function idxFromXInfer(svgX){ return inferView.start + (svgX-PADL)/(CW-PADL-PAD)*(inferView.end-inferView.start); }
+function yOf2(v, lo, hi){ return CH2-PAD - (v-lo)*(CH2-2*PAD)/(hi-lo); }
+
+function renderInferChart(predicted, hiddenNow, hoverIdx){
+  let [lo,hi] = valueRange(state.series);
+  [lo,hi] = applyYZoom(lo, hi, state.inferYZoom);
+  const i0 = Math.max(0, Math.floor(inferView.start));
+  const i1 = Math.min(N_POINTS-1, Math.ceil(inferView.end));
+  let d='M ';
+  for(let i=i0;i<=i1;i++) d += (i>i0?' L ':'') + xOfInfer(i).toFixed(1)+' '+yOf2(state.series[i],lo,hi).toFixed(1);
+  let svg = axisLabelsSVG(lo, hi, inferView.start, inferView.end, xOfInfer, CH2);
+  svg += `<path d="${d}" fill="none" stroke="#4a5570" stroke-width="2"/>`;
+  if(predicted && predicted.length){
+    let pd='', started=false;
+    predicted.forEach((v,k)=>{
+      const idx = k+1;
+      if(idx<i0-1 || idx>i1+1) return;
+      pd += (started?' L ':'M ') + xOfInfer(idx).toFixed(1)+' '+yOf2(v,lo,hi).toFixed(1);
+      started=true;
+    });
+    if(pd) svg += `<path d="${pd}" fill="none" stroke="var(--fwd)" stroke-width="2.2"/>`;
+  }
+  if(!state.inferZoomMode && hoverIdx!==null && hoverIdx!==undefined && hoverIdx>=i0 && hoverIdx<=i1){
+    svg += `<circle cx="${xOfInfer(hoverIdx).toFixed(1)}" cy="${yOf2(state.series[hoverIdx],lo,hi).toFixed(1)}" r="7" fill="var(--panel)" stroke="var(--amber)" stroke-width="2.5"/>`;
+  }
+  inferChart.innerHTML = svg;
+  inferChart.dataset.lo=lo; inferChart.dataset.hi=hi;
+
+  // hidden-state strip, in its own SVG above the chart — never overlaps the data
+  let hs = `<text x="8" y="20" fill="var(--text-dim)" font-family="monospace" font-size="18" font-weight="700">h_t</text>`;
+  if(hiddenNow && hiddenNow.length){
+    const insetW=1000, insetH=90, midY=52, barMax=32;
+    const barW = (insetW-20)/hiddenNow.length;
+    hiddenNow.forEach((v,i)=>{
+      const barH = Math.min(1,Math.abs(v))*barMax;
+      const x = 10+i*barW;
+      const y = v>=0? midY-barH : midY;
+      hs += `<rect x="${(x+2).toFixed(1)}" y="${y.toFixed(1)}" width="${Math.max(1,barW-4).toFixed(1)}" height="${barH.toFixed(1)}" fill="${v>=0?'var(--fwd)':'var(--bwd)'}" rx="1.5"/>`;
+    });
+    hs += `<line x1="10" y1="${midY}" x2="${insetW-10}" y2="${midY}" stroke="var(--grid)"/>`;
+  }
+  hiddenStrip.innerHTML = hs;
+}
+
+/* edit mode (default): hover shows a drag point, dragging reshapes the input.
+   zoom mode (toggled): dragging pans, wheel zooms (x, or y with Shift). */
+let inferDragging = false, inferDragIdx0 = null, inferDragBaseOffset = null, inferDragOrigVal = 0, inferHoverIdx = null;
+let inferPanning = false, inferPanStartX = 0, inferPanStartView = null;
+
+inferChart.addEventListener('pointerdown', (e)=>{
+  const rect = inferChart.getBoundingClientRect();
+  const svgX = (e.clientX-rect.left)/rect.width*CW;
+  if(state.inferZoomMode){
+    inferPanning = true;
+    inferPanStartX = e.clientX;
+    inferPanStartView = { start: inferView.start, end: inferView.end };
+    safeCapture(inferChart, e.pointerId);
+    return;
+  }
+  inferDragIdx0 = Math.max(0, Math.min(N_POINTS-1, Math.round(idxFromXInfer(svgX))));
+  inferDragBaseOffset = state.editOffset.slice();
+  inferDragOrigVal = state.series[inferDragIdx0];
+  inferDragging = true;
+  safeCapture(inferChart, e.pointerId);
+});
+inferChart.addEventListener('pointermove', (e)=>{
+  const rect = inferChart.getBoundingClientRect();
+  const svgX = (e.clientX-rect.left)/rect.width*CW;
+  const svgY = (e.clientY-rect.top)/rect.height*CH2;
+  if(inferPanning){
+    const dx = e.clientX - inferPanStartX;
+    const span = inferPanStartView.end - inferPanStartView.start;
+    const idxDelta = -dx/rect.width*span;
+    let start = inferPanStartView.start+idxDelta, end = inferPanStartView.end+idxDelta;
+    if(start<0){ end-=start; start=0; }
+    if(end>N_POINTS-1){ start-=(end-(N_POINTS-1)); end=N_POINTS-1; }
+    inferView.start=Math.max(0,start); inferView.end=Math.min(N_POINTS-1,end);
+    renderInferChart(curPredicted, curHidden, inferHoverIdx);
+  } else if(inferDragging){
+    const lo = parseFloat(inferChart.dataset.lo), hi = parseFloat(inferChart.dataset.hi);
+    const val = hi - (svgY-PAD)*(hi-lo)/(CH2-2*PAD);
+    const delta = val - inferDragOrigVal;
+    applyEditBump(inferDragBaseOffset, inferDragIdx0, delta);
+    curPredicted = null; curHidden = null; // series changed, old prediction no longer valid
+    document.getElementById('maeVal').textContent='—'; document.getElementById('rmseVal').textContent='—'; document.getElementById('mapeVal').textContent='—';
+    inferHoverIdx = inferDragIdx0;
+    renderDataChart(dataHoverIdx);
+    renderInferChart(curPredicted, curHidden, inferHoverIdx);
+  } else {
+    inferHoverIdx = Math.max(0, Math.min(N_POINTS-1, Math.round(idxFromXInfer(svgX))));
+    renderInferChart(curPredicted, curHidden, inferHoverIdx);
+  }
+});
+function endInferDrag(){ inferDragging=false; inferPanning=false; }
+inferChart.addEventListener('pointerup', endInferDrag);
+inferChart.addEventListener('pointerleave', ()=>{ endInferDrag(); inferHoverIdx=null; renderInferChart(curPredicted, curHidden, null); });
+inferChart.addEventListener('wheel', (e)=>{
+  if(!state.inferZoomMode) return; // mouse-driven zoom only active when the toggle is on
+  e.preventDefault();
+  const rect = inferChart.getBoundingClientRect();
+  const svgX = (e.clientX-rect.left)/rect.width*CW;
+  const centerIdx = idxFromXInfer(svgX);
+  const factor = e.deltaY<0 ? 0.85 : (1/0.85);
+  let span = (inferView.end-inferView.start)*factor;
+  span = Math.max(10, Math.min(N_POINTS-1, span));
+  let start = centerIdx - (centerIdx-inferView.start)*(span/(inferView.end-inferView.start));
+  let end = start+span;
+  if(start<0){ end-=start; start=0; }
+  if(end>N_POINTS-1){ start-=(end-(N_POINTS-1)); end=N_POINTS-1; }
+  inferView.start=Math.max(0,start); inferView.end=Math.min(N_POINTS-1,end);
+  const yFactor = e.deltaY<0 ? 1.15 : (1/1.15);
+  state.inferYZoom = Math.max(0.3, Math.min(6, state.inferYZoom*yFactor));
+  renderInferChart(curPredicted, curHidden, inferHoverIdx);
+}, {passive:false});
+
+document.getElementById('inferZoomToggle').addEventListener('change', (e)=>{
+  state.inferZoomMode = e.target.checked;
+  inferChart.style.cursor = state.inferZoomMode ? 'grab' : 'crosshair';
+  renderInferChart(curPredicted, curHidden, null);
+});
+
+document.getElementById('zoomOutBtn').onclick = ()=>{
+  state.inferYZoom = 1;
+  inferView = { start:0, end:N_POINTS-1 };
+  renderInferChart(curPredicted, curHidden, inferHoverIdx);
+};
+document.getElementById('revertInputBtn').onclick = ()=>{
+  state.editOffset = new Array(N_POINTS).fill(0);
+  state.valueShift = 0;
+  shiftSlider.value = 0;
+  document.getElementById('shiftVal').textContent = '0.00';
+  recomputeSeries();
+  curPredicted = null; curHidden = null;
+  document.getElementById('maeVal').textContent='—'; document.getElementById('rmseVal').textContent='—'; document.getElementById('mapeVal').textContent='—';
+  renderDataChart(dataHoverIdx);
+  renderInferChart(null,null,inferHoverIdx);
+};
+
+function computeMetrics(preds){
+  let se=0, ae=0, apeSum=0, apeCount=0;
+  preds.forEach((v,k)=>{
+    const actual = state.series[k+1];
+    const e = v-actual;
+    se += e*e; ae += Math.abs(e);
+    if(Math.abs(actual) > 1e-6){ apeSum += Math.abs(e/actual); apeCount++; }
+  });
+  const n = preds.length;
+  return { mae: ae/n, rmse: Math.sqrt(se/n), mape: apeCount ? (apeSum/apeCount*100) : null };
+}
+function updateMetricsDisplay(preds){
+  if(!preds || !preds.length) return;
+  const m = computeMetrics(preds);
+  document.getElementById('maeVal').textContent = m.mae.toFixed(4);
+  document.getElementById('rmseVal').textContent = m.rmse.toFixed(4);
+  document.getElementById('mapeVal').textContent = m.mape===null ? '—' : m.mape.toFixed(2)+'%';
+}
+
+const runBtn = document.getElementById('runBtn'), stopBtn = document.getElementById('stopBtn');
+
+runBtn.onclick = ()=>{
+  if(!state.weights){ resetWeights(); }
+  const warnEl = document.getElementById('fewUpdatesWarn');
+  warnEl.style.display = state.stepCount < 50 ? 'block' : 'none';
+
+  state.inferGen++;
+  const myGen = state.inferGen;
+  state.inferRunning = true;
+  runBtn.disabled = true; stopBtn.disabled = false;
+  document.getElementById('maeVal').textContent='—';
+  document.getElementById('rmseVal').textContent='—';
+  document.getElementById('mapeVal').textContent='—';
+
+  const w = state.weights;
+  let h = Array(w.H).fill(0);
+  const predicted = [];
+  let t = 0; // will step t = 0 .. N_POINTS-2, feeding actual series[t] as input, predicting series[t+1]
+  const totalSteps = N_POINTS - 1;
+
+  function doStep(){
+    if(myGen !== state.inferGen) return; // stopped / superseded
+    if(t >= totalSteps){ finishRun(myGen); return; }
+    const m = speedMultiplier(); // 0.1x .. 10x, log scale
+    const pointsPerTick = m >= 1 ? Math.max(1, Math.round(5*m)) : 1;
+    const tickDelay = m >= 1 ? 16 : Math.round(16/m);
+    for(let k=0; k<pointsPerTick && t<totalSteps; k++){
+      const xt = state.series[t]; // always follow the true input
+      const z = new Array(w.H);
+      for(let i=0;i<w.H;i++){
+        let s = w.Wxh[i]*xt + w.bh[i];
+        for(let kk=0;kk<w.H;kk++) s += w.Whh[i][kk]*h[kk];
+        z[i]=s;
+      }
+      h = z.map(v=>act(v, state.activation));
+      let y = w.by;
+      for(let i=0;i<w.H;i++) y += w.Why[i]*h[i];
+      predicted.push(y);
+      t++;
+    }
+    curPredicted = predicted; curHidden = h;
+    renderInferChart(predicted, h);
+    updateMetricsDisplay(predicted);
+    if(t >= totalSteps){ finishRun(myGen); return; }
+    setTimeout(doStep, tickDelay);
+  }
+  doStep();
+};
+
+function finishRun(gen){
+  state.inferRunning = false;
+  runBtn.disabled = false; stopBtn.disabled = true;
+}
+stopBtn.onclick = ()=>{
+  state.inferGen++; // invalidate running loop
+  state.inferRunning = false;
+  runBtn.disabled = false; stopBtn.disabled = true;
+};
+document.getElementById('infResetBtn').onclick = ()=>{
+  state.inferGen++;
+  state.inferRunning = false;
+  runBtn.disabled = false; stopBtn.disabled = true;
+  curPredicted = null; curHidden = null;
+  document.getElementById('maeVal').textContent='—';
+  document.getElementById('rmseVal').textContent='—';
+  document.getElementById('mapeVal').textContent='—';
+  document.getElementById('fewUpdatesWarn').style.display='none';
+  renderInferChart(null,null);
+};
+
+/* ============================= INIT ============================= */
+setBaseSeries(genSine(N_POINTS, state.noise, parseFloat(periodSlider.value), parseFloat(ampSlider.value), parseFloat(skewSlider.value)));
+renderDataChart();
+syncTrainLabels();
+resetWeights();
+renderInferChart(null,null);
+
+})();
+</script>
+</body>
+</html>
